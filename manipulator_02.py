@@ -20,9 +20,13 @@ class Manipulator:
         self.throw_on = True
         self.ball_radius = 10
 
-        self.kp = 1
-        self.ki = 0.1
-        self.kd = 0.001
+        # self.kp = 1
+        # self.ki = 0.1
+        # self.kd = 0.001
+        self.kp = 10
+        self.ki = 0.5
+        self.kd = 0.09
+
         self.prev_error = 0
         self.integral = 0
 
@@ -178,7 +182,7 @@ class Manipulator:
         length = 20
         x = self.links[-1]["link"].position[0]
         left_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
-        left_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"]/2 + width/2,
+        left_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"]/2 + width/2 - 10,  # + 3
                               self.links[-1]["link"].position[1] - self.dimensions[0])
 
         left_claw_shape = pymunk.Poly.create_box(body=left_claw, size=(width, length), radius=0)
@@ -188,14 +192,14 @@ class Manipulator:
         left_claw_joint = pymunk.PinJoint(left_claw,
                                           self.links[-1]["link"],
                                           (0, length/2 - 1),
-                                          (-self.links[-1]["length"]/2 + width/2, 0))
+                                          (-self.links[-1]["length"]/2 + width/2 - 2, 0))  # - 2
         left_claw_joint.error_bias = 0
         # left_claw_joint.collide_bodies = False
         self.space.add(left_claw, left_claw_shape, left_claw_joint)
 
         right_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
         right_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"] / 2 + width / 2 +
-                               2 * self.ball_radius + width,
+                               2 * self.ball_radius + width - 2,  # - 2
                                self.links[-1]["link"].position[1] - self.dimensions[0])
 
         right_claw_shape = pymunk.Poly.create_box(body=right_claw, size=(width, length), radius=0)
@@ -206,7 +210,7 @@ class Manipulator:
                                            self.links[-1]["link"],
                                            (0, length / 2 - 1),
                                            (-self.links[-1]["length"] / 2 + width / 2 +
-                                            2 * self.ball_radius + width, 0))
+                                            2 * self.ball_radius + width + 2, 0))  # + 2
         right_claw_joint.error_bias = 0
         # right_claw_joint.collide_bodies = False
 
@@ -217,7 +221,7 @@ class Manipulator:
                                                      (-self.links[-1]["length"] / 2 + width / 2 +
                                                       2 * self.ball_radius + width, 0),
                                                      (-self.links[-1]["length"] / 2 + width / 2 +
-                                                      2 * self.ball_radius + width, -20,),
+                                                      2 * self.ball_radius + width + 2, -20,),  # + 2
                                                      (0, 0))
         right_claw_groove_joint.error_bias = 0
 
@@ -226,7 +230,7 @@ class Manipulator:
         left_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
                                                     left_claw,
                                                     (-self.links[-1]["length"]/2 + width/2, 0),
-                                                    (-self.links[-1]["length"]/2 + width/2, -20),
+                                                    (-self.links[-1]["length"]/2 + width/2 - 20 - 2, -20),  # - 2
                                                     (0, 0))
         left_claw_groove_joint.error_bias = 0
 

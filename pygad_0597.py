@@ -264,7 +264,7 @@ class GeneticAlgorithm:
 
         for i in range(0, self.num_genes):
             if i % 2 != 0:
-                try:  # Penalizing the GA for incorrect timestamps (they to be monotonically increasing)
+                try:  # Penalizing the GA for incorrect timestamps (they have to be monotonically increasing)
                     if solution[i + 1] <= solution[i]:
                         fitness -= self.penalty_angle
                 except IndexError:

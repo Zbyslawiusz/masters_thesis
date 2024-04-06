@@ -50,6 +50,10 @@ class Simulation:
                         timestamps[_+1] = timestamps[_] + 0.001
                 except IndexError:
                     pass
+                if angles[_] < -pi/2:  # Making sure angles are in a correct range
+                    angles[_] = -pi/2
+                elif angles[_] > pi/2:
+                    angles[_] = pi/2
             # Simulation starts in time=0, therefore interpolation must include value range starting at 0 or scipy will crash
             if timestamps[0] > 0:
                 timestamps.insert(0, 0)
