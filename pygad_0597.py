@@ -32,6 +32,7 @@ class GeneticAlgorithm:
         self.penalty_col = fitness_params["penalty_col"]  # Penalty for hitting the obstacle
         self.penalty_angle = fitness_params["penalty_angle"]  # Penalty for wrong angle solutions
         self.ga_amount = fitness_params["Num_of_training_instances"]
+        self.interpolation = fitness_params["Num_of_interpolation_angles"]
         # Genetic algorithm parameters
         self.num_generations = ga_params["num_generations"]
         self.num_parents_mating = ga_params["num_parents_mating"]
@@ -83,7 +84,7 @@ class GeneticAlgorithm:
         # tkinter window STOP
 
         # GA parameters
-        self.num_genes = self.number_of_links * 2
+        self.num_genes = self.number_of_links * self.interpolation * 2  # Angles and their timestamps
         self.last_fitness = 0
         self.ga_instance = pygad.GA(num_generations=self.num_generations,
                                     num_parents_mating=self.num_parents_mating,
@@ -137,7 +138,8 @@ class GeneticAlgorithm:
                 minimum_solution_sim = Simulation(genetic_solution=self.minimum_solution,
                                                   ui_flag=False,
                                                   number_of_links=self.number_of_links,
-                                                  target_xcor=self.target_xcor)
+                                                  target_xcor=self.target_xcor,
+                                                  interpolation=self.interpolation)
                 acceptable_solution_distance = minimum_solution_sim.error_sum[0]
                 acceptable_solution_time_of_throw = minimum_solution_sim.error_sum[2]
                 acceptable_solution_total_work_sum = minimum_solution_sim.error_sum[3]
@@ -145,7 +147,8 @@ class GeneticAlgorithm:
             best_solution_sim = Simulation(genetic_solution=best_solution,
                                            ui_flag=False,
                                            number_of_links=self.number_of_links,
-                                           target_xcor=self.target_xcor)
+                                           target_xcor=self.target_xcor,
+                                           interpolation=self.interpolation)
 
             df = pd.DataFrame(
                 {
@@ -184,6 +187,7 @@ class GeneticAlgorithm:
                     "penalty_angle": self.penalty_angle,  # Penalty for wrong angle solutions
                     "fitness_change": [self.fitness_change],
                     "Num_of_training_instances": self.ga_amount,
+                    "Num_of_interpolation_angles": self.interpolation,
                 }
             )
 
@@ -218,6 +222,7 @@ class GeneticAlgorithm:
                     "penalty_col": self.penalty_col,  # Penalty for hitting the obstacle
                     "penalty_angle": self.penalty_angle,  # Penalty for wrong angle solutions
                     "Num_of_training_instances": self.ga_amount,
+                    "Num_of_interpolation_angles": self.interpolation,
                 }, index=[0]  # This fixes the "ValueError: If using all scalar values, you must pass an index" error
             )
             current_settings.to_json("settings.json")
@@ -235,7 +240,7 @@ class GeneticAlgorithm:
             self.progress_window.mainloop()
 
     def close_window(self, window):
-        """This method closes passed popup window"""
+        """This method closes popup window"""
         window.destroy()
 
     def fitness_func(self, ga_instance, solution, solution_idx):
@@ -243,7 +248,8 @@ class GeneticAlgorithm:
         simulation = Simulation(genetic_solution=solution,
                                 ui_flag=False,
                                 number_of_links=self.number_of_links,
-                                target_xcor=self.target_xcor)
+                                target_xcor=self.target_xcor,
+                                interpolation=self.interpolation)
         # fitness = 1.0 / (error_sum + 0.0001)
 
         # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
@@ -256,9 +262,16 @@ class GeneticAlgorithm:
         if simulation.error_sum[1]:
             fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
 
-        for i in range(0, self.number_of_links*2, 2):
-            if solution[i] > pi/2 or solution[i] < -pi/2:
-                fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
+        for i in range(0, self.num_genes):
+            if i % 2 != 0:
+                try:  # Penalizing the GA for incorrect timestamps (they to be monotonically increasing)
+                    if solution[i + 1] <= solution[i]:
+                        fitness -= self.penalty_angle
+                except IndexError:
+                    pass
+            else:
+                if solution[i] > pi/2 or solution[i] < -pi/2:
+                    fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
 
         if simulation.error_sum[0] <= 10 and not self.is_set:  # Acquiring the acceptable solution
             self.is_set = True

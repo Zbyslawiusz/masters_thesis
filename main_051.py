@@ -7,6 +7,9 @@ import pymunk.pygame_util
 from pymunk.vec2d import Vec2d
 from math import pi
 
+import numpy as np
+from scipy.interpolate import interp1d
+
 from manipulator_02 import Manipulator
 
 WIDTH, HEIGHT = 1500, 1000
@@ -19,13 +22,36 @@ OBSTACLE_COLLISION_TYPE = 3
 GROUND_THICKNESS = 50
 
 
-class Simulation():
-    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor):
+class Simulation:
+    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation):
 
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
         self.control_values = genetic_solution  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
-        self.draw_ui = ui_flag
+        self.draw_ui = ui_flag  # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
         self.number_of_links = number_of_links
+        self.interpolation = interpolation
+        self.interp_functions = []  # This list contains interpolated functions for individual links
+
+        # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
+        for i in range(0, self.number_of_links):
+            angles = []  # Contains desired angles for each link
+            timestamps = []  # Stores timestamps corresponding to desired angles for each link
+            values = self.control_values[i*self.interpolation*2:i*self.interpolation*2+self.interpolation*2]
+            for _ in range(0, len(values)):
+                if _ % 2 != 0:  # Check every even number in genetic solution to get angle, odd numbers store timestamps
+                    timestamps.append(values[_])
+                else:  # Even numbers store angles
+                    angles.append(values[_])
+            for _ in range(0, len(timestamps)):  # Timestamps have to be monotonically increasing, if they're not
+                try:                             # scipy will crash
+                    if timestamps[_+1] <= timestamps[_]:
+                        timestamps[_+1] = timestamps[_] + 0.001
+                except IndexError:
+                    pass
+            # It is now possible to interpolate values separated into angles and timestamps
+            interp_func = interp1d(np.array(timestamps), np.array(angles), kind='cubic')
+            self.interp_functions.append(interp_func)
+
         self.first_link_length = 150
         self.firs_link_width = 20
         self.first_link_mass = 1
@@ -42,9 +68,11 @@ class Simulation():
         return True
 
     def ball_with_trail(self, arbiter, space, data):
+        """Callback function for the collision handler"""
         return False
 
     def link_with_trail(self, arbiter, space, data):
+        """Callback function for the collision handler"""
         return False
 
     def simulation(self, genetic_solution, ui_flag):
@@ -128,11 +156,10 @@ class Simulation():
         fps = 200
         dt = 1.0 / fps
 
-        elapsed_time = 0
         for link in manipulator.links[1:]:
             link["angle"] = -pi/2  # Subtracting pi/2 in case of horizontal manipulator creator
         # self.x_cor = 2500  # x Coordinate that the ball is supposed to hit
-        registered_distance = 20000
+        registered_distance = 2_000_000  # Default value of distance, penalizes manipulator not doing anything
 
         work_sum = 0
 
@@ -142,7 +169,8 @@ class Simulation():
         step = 0
         finished = False
 
-        # Main loop
+        elapsed_time = 0
+        # Main loop ----------------------------------------------------------------------------------------------------
         while running:
 
             for event in pygame.event.get():
@@ -150,11 +178,11 @@ class Simulation():
                     # print("\nTHE END")
                     return
 
-            # State vector reading (current angles, current angular velocities of links)
+            # State vector reading (current angles, current angular velocities of links) -------------------------------
             ball_xcor = manipulator.ball.position[0]
-            manipulator.update_links()  # Update current and previous angle of every link
+            manipulator.update_links()  # Update current and previous angle of every link ------------------------------
 
-            # Detecting collisions with ground and resting point and others
+            # Detecting collisions with ground and resting point and others --------------------------------------------
             if not hit_ground:
                 handler_ball.begin = manipulator.ball_hit_ground  # Collision between ball and ground
                 handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
@@ -173,24 +201,19 @@ class Simulation():
             # print(f"Ball's x, y coordinates: {manipulator.ball.position[0]}, {manipulator.ball.position[1]}\n"
             #       f"Ball's vx, vy velocity: {manipulator.ball.velocity[0]}, {manipulator.ball.velocity[1]}\n")
 
-            # Moving the links
+            # Moving the links -----------------------------------------------------------------------------------------
             i = 0
             for link in manipulator.links[1:]:
                 traversed_angle = abs(link["angle"] - link["previous_angle"])
-                if self.control_values[i + 1] >= 20:
-                    force = 10 * -1000 * math.sin(link["angle"])
-                else:
-                    force = self.control_values[i + 1] * -1000 * math.sin(link["angle"])  # Used to create momentum
-                desired_angle = self.control_values[i]
+                # Passing the current timestamp to interpolated function in order to calculate current desired angle
+                desired_angle = self.interp_functions[i](elapsed_time)
+                error = abs(desired_angle - link["angle"])
+                force = manipulator.pid_force_calculator(error=error, dt=dt)
                 work_sum += abs(force * traversed_angle)
-                if link["angle"] < desired_angle and not link["is set"]:
-                    manipulator.simple_throw(force=force, link=link)
-                else:
-                    link["is set"] = True
-                manipulator.pid_brake(link=link)
+                manipulator.simple_throw(force=force, link=link)  # Moving the link
+                i += i
 
-                i += 2
-
+            # Drawing pymunk UI ----------------------------------------------------------------------------------------
             if ui_flag:
                 # Clear screen
                 screen.fill(pygame.Color("grey"))
@@ -200,12 +223,13 @@ class Simulation():
                 clock.tick(fps)
                 # print(link_ang_vel)
 
+                # Drawing the trail-------------------------------------------------------------------------------------
                 if step < 10 and not hit_ground and not finished:
                     step += 1
                     if step == 1:
                         pos = manipulator.ball.position
                 elif step >= 10 and not hit_ground and not finished:
-                    # Creating the trail
+                    # Creating the trail balls
                     trail = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
                     trail.position = pos
                     trail_shape = pymunk.Circle(trail, radius=3)
@@ -214,7 +238,7 @@ class Simulation():
                     space.add(trail, trail_shape)
                     step = 0
 
-            # Update physics
+            # Update physics -------------------------------------------------------------------------------------------
             if not finished:
                 space.step(dt)
                 elapsed_time += dt
@@ -224,6 +248,7 @@ class Simulation():
             if hit_ground:
                 manipulator.ball.velocity = (0, 0)
 
+            # Finishing simulation by hitting the ground ---------------------------------------------------------------
             if hit_ground and not finished:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
@@ -235,6 +260,7 @@ class Simulation():
                     return
                 # return self.error_sum
 
+            # Timeout --------------------------------------------------------------------------------------------------
             elif elapsed_time > 7 and not finished:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]

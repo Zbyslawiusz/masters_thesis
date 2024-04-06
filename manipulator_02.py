@@ -20,6 +20,12 @@ class Manipulator:
         self.throw_on = True
         self.ball_radius = 10
 
+        self.kp = 1
+        self.ki = 0.1
+        self.kd = 0.001
+        self.prev_error = 0
+        self.integral = 0
+
         self.ball_hit_the_ground = False
         self.link_is_reversed = False
         self.obstacle_is_hit = False
@@ -48,6 +54,15 @@ class Manipulator:
             "is set": False,
             })
         # self.horizontal_manipulator_creator()
+
+    def pid_force_calculator(self, error, dt):
+        """This method calculates momentum that is used to rotate links based on error between current angle and
+        desired angle from interpolated GA angles and timestamps"""
+        self.integral += error * dt
+        derivative = (error - self.prev_error) / dt
+        force = self.kp * error + self.ki * self.integral + self.kd * derivative
+        self.prev_error = error
+        return force
 
     def vertical_manipulator_creator(self):
         """This method creates links of the manipulator. Links are standing upon creation"""

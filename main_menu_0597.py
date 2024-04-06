@@ -105,7 +105,8 @@ class Menu:
         try:
             self.solutions_file = pd.read_csv("solution.csv")
         except FileNotFoundError:
-            pass
+            # pass
+            self.csv_exists = False
         else:
             self.csv_exists = True
             self.num_of_solutions = len(
@@ -115,7 +116,8 @@ class Menu:
         try:
             self.settings_file = pd.read_json("settings.json")
         except FileNotFoundError:
-            pass
+            # pass
+            self.json_exists = False
         else:
             self.json_exists = True
 
@@ -193,14 +195,16 @@ class Menu:
                 genetic_solution=acceptable_solution,
                 ui_flag=True,
                 number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
-                target_xcor=float(self.solutions_file["target_xcor"][self.highlighted])
+                target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+                interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
             )
 
         best_solution_sim = Simulation(
             genetic_solution=best_solution,
             ui_flag=True,
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
-            target_xcor=float(self.solutions_file["target_xcor"][self.highlighted])
+            target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+            interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
         )
 
         generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
@@ -235,7 +239,7 @@ class Menu:
 
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
-                          "Num of training instances: "]
+                          "Num of training instances: ", "Num of interpolation angles: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -275,19 +279,22 @@ class Menu:
         if isinstance(df_from_file, pd.core.frame.DataFrame):  # Checking if there is a file passed to the function
             # print("Got the file")
             # print(type(file))
+            interpolation_angles = 1
             num_of_training_instances = 1
             if mode == "csv":
                 index = self.highlighted
                 num_of_training_instances = df_from_file["Num_of_training_instances"][index]
+                interpolation_angles = df_from_file["Num_of_interpolation_angles"][index]
             elif mode == "json":
                 index = 0
                 num_of_training_instances = df_from_file["Num_of_training_instances"][index]
+                interpolation_angles = df_from_file["Num_of_interpolation_angles"][index]
             # Filling in default values for entries based on the contents of the passed file
             left_entry_insert = [df_from_file["Num of movable links"][index], df_from_file["target_xcor"][index],
                                  df_from_file["max_fitness"][index], df_from_file["distance_value"][index],
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
-                                 num_of_training_instances,]
+                                 num_of_training_instances, interpolation_angles]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
@@ -341,6 +348,7 @@ class Menu:
             "penalty_col": entry_lists[0][6].get(),
             "penalty_angle": entry_lists[0][7].get(),
             "Num_of_training_instances": entry_lists[0][8].get(),
+            "Num_of_interpolation_angles": entry_lists[0][9].get(),
         }
 
         # Getting values from left entry widgets
@@ -360,16 +368,16 @@ class Menu:
         # Converting values from dictionaries to appropriate types
         i = 0
         for (key, param) in fitness_params.items():
-            if i in (0, 8):
+            if i in (0, 8, 9):
                 try:
-                    fitness_params[key] = int(param)
+                    fitness_params[key] = int(param)  # To integers
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
             else:
                 try:
-                    fitness_params[key] = float(param)
+                    fitness_params[key] = float(param)  # To floats
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
@@ -381,7 +389,7 @@ class Menu:
         for (key, param) in ga_params.items():
             if i in (0, 1, 9):
                 try:
-                    ga_params[key] = int(param)
+                    ga_params[key] = int(param)  # To integers
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
@@ -390,7 +398,7 @@ class Menu:
                 pass
             else:
                 try:
-                    ga_params[key] = float(param)
+                    ga_params[key] = float(param)  # To floats
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
