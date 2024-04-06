@@ -25,6 +25,8 @@ GROUND_THICKNESS = 50
 class Simulation:
     def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation):
 
+        self.max_force = 5  # Simulates physical constraints and safety limits of manipulator's servomotors
+
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
         self.control_values = genetic_solution  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
         self.draw_ui = ui_flag  # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
@@ -42,14 +44,19 @@ class Simulation:
                     timestamps.append(values[_])
                 else:  # Even numbers store angles
                     angles.append(values[_])
-            for _ in range(0, len(timestamps)):  # Timestamps have to be monotonically increasing, if they're not
-                try:                             # scipy will crash
+            for _ in range(0, len(timestamps)):  # Timestamps have to be monotonically increasing, if they're not scipy will crash
+                try:
                     if timestamps[_+1] <= timestamps[_]:
                         timestamps[_+1] = timestamps[_] + 0.001
                 except IndexError:
                     pass
+            # Simulation starts in time=0, therefore interpolation must include value range starting at 0 or scipy will crash
+            if timestamps[0] > 0:
+                timestamps.insert(0, 0)
+                angles.insert(0, 0)
+
             # It is now possible to interpolate values separated into angles and timestamps
-            interp_func = interp1d(np.array(timestamps), np.array(angles), kind='cubic')
+            interp_func = interp1d(np.array(timestamps), np.array(angles), kind="cubic", fill_value="extrapolate")
             self.interp_functions.append(interp_func)
 
         self.first_link_length = 150
@@ -209,8 +216,10 @@ class Simulation:
                 desired_angle = self.interp_functions[i](elapsed_time)
                 error = abs(desired_angle - link["angle"])
                 force = manipulator.pid_force_calculator(error=error, dt=dt)
+                if force > self.max_force:
+                    force = self.max_force
                 work_sum += abs(force * traversed_angle)
-                manipulator.simple_throw(force=force, link=link)  # Moving the link
+                manipulator.simple_throw(force=force*1000, link=link)  # Moving the link
                 i += i
 
             # Drawing pymunk UI ----------------------------------------------------------------------------------------
