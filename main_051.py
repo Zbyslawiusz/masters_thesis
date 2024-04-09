@@ -223,7 +223,7 @@ class Simulation:
                 if force > self.max_force:
                     force = self.max_force
                 work_sum += abs(force * traversed_angle)
-                manipulator.simple_throw(force=force*1000, link=link)  # Moving the link
+                manipulator.simple_throw(force=force*0, link=link)  # Moving the link
                 i += i
 
             # Drawing pymunk UI ----------------------------------------------------------------------------------------

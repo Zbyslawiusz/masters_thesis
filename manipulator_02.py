@@ -14,7 +14,8 @@ class Manipulator:
         self.links = []
         self.x = x_cor
         self.y = y_cor
-        self.dimensions = [width, length]  # Dimensions of the first link
+        # Dimensions of the first link, they are reverted if horizontal manipulator creator is used
+        self.dimensions = [width, length]
         self.ground = ground
         self.space = space
         self.throw_on = True
@@ -178,65 +179,111 @@ class Manipulator:
                 link["link"].velocity = 0, 0  # freeze links in place
 
     def horizontal_gripper_creator(self):
-        width = 6
+        # width = 6
         length = 20
-        x = self.links[-1]["link"].position[0]
-        left_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
-        left_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"]/2 + width/2 - 10,  # + 3
-                              self.links[-1]["link"].position[1] - self.dimensions[0])
+        x = self.links[-1]["link"].position[0]  # x and y of the last link
+        y = self.links[-1]["link"].position[1]
+        a = 5
+        b = 22
+        width = self.dimensions[0]  # It stores width if horizontal manipulator creator
+        gripper_body = pymunk.Body(mass=2, moment=2)
+        gripper_body.position = (x - self.links[-1]["length"]/2 + a + b/2,
+                                 y - width/2 - a/2)
+        # vs1 = [(-a - b/2, -a/2), (a + b/2, -a/2), (a + b/2, a/2 + b), (b/2, a/2 + b), (b/2, a/2), (-b/2, a/2),
+        #       (-b/2, a/2 + b), (-a - b/2, a/2 + b)]
+        vs1 = [(-b/2, -a/2), (b/2, -a/2), (b/2, a/2), (-b/2, a/2)]
+        box1 = pymunk.Poly(body=gripper_body, vertices=vs1, radius=1)
+        vs2 = [(b/2, -a/2), (b/2 + a, -a/2), (b/2 + a, a/2 + b), (b/2, a/2 + b)]
+        box2 = pymunk.Poly(body=gripper_body, vertices=vs2, radius=1)
+        vs3 = [(-a - b/2, -a/2), (-b/2, -a/2), (-b/2, a/2 + b), (-a - b/2, a/2 + b)]
+        box3 = pymunk.Poly(body=gripper_body, vertices=vs3, radius=1)
 
-        left_claw_shape = pymunk.Poly.create_box(body=left_claw, size=(width, length), radius=0)
-        left_claw_shape.collision_type = self.link_collision_type
-        left_claw_shape.friction = 1.0
+        left_pin_joint = pymunk.PinJoint(self.links[-1]["link"],
+                                         gripper_body,
+                                         (-self.links[-1]["length"]/2 + a/2, 0),
+                                         (-a/2 - b/2, 0))
+        left_pin_joint.error_bias = 0
 
-        left_claw_joint = pymunk.PinJoint(left_claw,
-                                          self.links[-1]["link"],
-                                          (0, length/2 - 1),
-                                          (-self.links[-1]["length"]/2 + width/2 - 2, 0))  # - 2
-        left_claw_joint.error_bias = 0
-        # left_claw_joint.collide_bodies = False
-        self.space.add(left_claw, left_claw_shape, left_claw_joint)
+        right_pin_joint = pymunk.PinJoint(self.links[-1]["link"],
+                                          gripper_body,
+                                          (-self.links[-1]["length"]/2 + a + b, 0),
+                                          (b/2 + a/2, 0))
+        right_pin_joint.error_bias = 0
 
-        right_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
-        right_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"] / 2 + width / 2 +
-                               2 * self.ball_radius + width - 2,  # - 2
-                               self.links[-1]["link"].position[1] - self.dimensions[0])
+        left_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
+                                               gripper_body,
+                                               (-self.links[-1]["length"]/2 + a/2, width/2 - 1),
+                                               (-self.links[-1]["length"]/2 + a/2, -width/2 + 1),
+                                               (-b/2 - a/2, 0))
+        left_groove_joint.error_bias = 0
 
-        right_claw_shape = pymunk.Poly.create_box(body=right_claw, size=(width, length), radius=0)
-        right_claw_shape.collision_type = self.link_collision_type
-        right_claw_shape.friction = 1.0
+        right_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
+                                                gripper_body,
+                                                (-self.links[-1]["length"]/2 + 1.5*a + b, width/2 - 1),
+                                                (-self.links[-1]["length"]/2 + 1.5*a + b, -width/2 + 1),
+                                                (b/2 + a/2, 0))
+        right_groove_joint.error_bias = 0
 
-        right_claw_joint = pymunk.PinJoint(right_claw,
-                                           self.links[-1]["link"],
-                                           (0, length / 2 - 1),
-                                           (-self.links[-1]["length"] / 2 + width / 2 +
-                                            2 * self.ball_radius + width + 2, 0))  # + 2
-        right_claw_joint.error_bias = 0
+        self.space.add(gripper_body, box1, box2, box3,
+                       left_pin_joint, right_pin_joint)
+        # self.space.add(left_groove_joint, right_groove_joint)
+
+        # left_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
+        # left_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"]/2 + width/2 - 10,  # + 3
+        #                       self.links[-1]["link"].position[1] - self.dimensions[0])
+        #
+        # left_claw_shape = pymunk.Poly.create_box(body=left_claw, size=(width, length), radius=0)
+        # left_claw_shape.collision_type = self.link_collision_type
+        # left_claw_shape.friction = 1.0
+        #
+        # left_claw_joint = pymunk.PinJoint(left_claw,
+        #                                   self.links[-1]["link"],
+        #                                   (0, length/2 - 1),
+        #                                   (-self.links[-1]["length"]/2 + width/2 - 2, 0))  # - 2
+        # left_claw_joint.error_bias = 0
+        # # left_claw_joint.collide_bodies = False
+        # ################### self.space.add(left_claw, left_claw_shape, left_claw_joint)
+        #
+        # right_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
+        # right_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"] / 2 + width / 2 +
+        #                        2 * self.ball_radius + width - 2,  # - 2
+        #                        self.links[-1]["link"].position[1] - self.dimensions[0])
+        #
+        # right_claw_shape = pymunk.Poly.create_box(body=right_claw, size=(width, length), radius=0)
+        # right_claw_shape.collision_type = self.link_collision_type
+        # right_claw_shape.friction = 1.0
+        #
+        # right_claw_joint = pymunk.PinJoint(right_claw,
+        #                                    self.links[-1]["link"],
+        #                                    (0, length / 2 - 1),
+        #                                    (-self.links[-1]["length"] / 2 + width / 2 +
+        #                                     2 * self.ball_radius + width + 2, 0))  # + 2
+        # right_claw_joint.error_bias = 0
         # right_claw_joint.collide_bodies = False
 
-        self.space.add(right_claw, right_claw_shape, right_claw_joint)
+        ################### self.space.add(right_claw, right_claw_shape, right_claw_joint)
 
-        right_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
-                                                     right_claw,
-                                                     (-self.links[-1]["length"] / 2 + width / 2 +
-                                                      2 * self.ball_radius + width, 0),
-                                                     (-self.links[-1]["length"] / 2 + width / 2 +
-                                                      2 * self.ball_radius + width + 2, -20,),  # + 2
-                                                     (0, 0))
-        right_claw_groove_joint.error_bias = 0
+        # right_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
+        #                                              right_claw,
+        #                                              (-self.links[-1]["length"] / 2 + width / 2 +
+        #                                               2 * self.ball_radius + width, 0),
+        #                                              (-self.links[-1]["length"] / 2 + width / 2 +
+        #                                               2 * self.ball_radius + width + 2, -20,),  # + 2
+        #                                              (0, 0))
+        # right_claw_groove_joint.error_bias = 0
 
-        self.space.add(right_claw_groove_joint)
+        ################### self.space.add(right_claw_groove_joint)
 
-        left_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
-                                                    left_claw,
-                                                    (-self.links[-1]["length"]/2 + width/2, 0),
-                                                    (-self.links[-1]["length"]/2 + width/2 - 20 - 2, -20),  # - 2
-                                                    (0, 0))
-        left_claw_groove_joint.error_bias = 0
+        # left_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
+        #                                             left_claw,
+        #                                             (-self.links[-1]["length"]/2 + width/2, 0),
+        #                                             (-self.links[-1]["length"]/2 + width/2 - 20 - 2, -20),  # - 2
+        #                                             (0, 0))
+        # left_claw_groove_joint.error_bias = 0
 
-        self.space.add(left_claw_groove_joint)
+        ################### self.space.add(left_claw_groove_joint)
 
-        self.horizontal_ball_creator(width=width)
+        # self.horizontal_ball_creator(width=width)
 
     def horizontal_ball_creator(self, width):
         """This method creates the ball that is to be thrown"""
