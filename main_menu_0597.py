@@ -197,6 +197,7 @@ class Menu:
                 number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
                 target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
                 interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
+                gripper=self.solutions_file["gripper_type"][self.highlighted]
             )
 
         best_solution_sim = Simulation(
@@ -205,6 +206,7 @@ class Menu:
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
             interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
+            gripper=self.solutions_file["gripper_type"][self.highlighted]
         )
 
         generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
@@ -239,7 +241,8 @@ class Menu:
 
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
-                          "Num of training instances: ", "Num of interpolation angles: "]
+                          "Num of training instances: ", "Num of interpolation angles: ",
+                          "'robotic' or 'stiff' gripper: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -274,7 +277,7 @@ class Menu:
         confirm_button = (tk.Button(self.new_train_window, text="CONFIRM AND START TRAINING", font=("Consolas", 30, "bold"),
                                     command=lambda: self.to_confirm_training(left_entry_list, right_entry_list,
                                                                              label=info_label)))
-        confirm_button.grid(row=12, column=0, columnspan=4)
+        confirm_button.grid(row=len(left_label_list)+2, column=0, columnspan=4)
 
         if isinstance(df_from_file, pd.core.frame.DataFrame):  # Checking if there is a file passed to the function
             # print("Got the file")
@@ -294,7 +297,7 @@ class Menu:
                                  df_from_file["max_fitness"][index], df_from_file["distance_value"][index],
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
-                                 num_of_training_instances, interpolation_angles]
+                                 num_of_training_instances, interpolation_angles, df_from_file["gripper_type"][index]]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
@@ -349,6 +352,7 @@ class Menu:
             "penalty_angle": entry_lists[0][7].get(),
             "Num_of_training_instances": entry_lists[0][8].get(),
             "Num_of_interpolation_angles": entry_lists[0][9].get(),
+            "gripper_type": entry_lists[0][10].get(),
         }
 
         # Getting values from left entry widgets
@@ -375,6 +379,8 @@ class Menu:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
+            elif i == 10:  # Gripper type is a string
+                pass
             else:
                 try:
                     fitness_params[key] = float(param)  # To floats
@@ -394,7 +400,7 @@ class Menu:
                     errors_detected = True
                     label.config(text=wrong_text)
                     ga_params[key] = "ERROR"
-            elif i in (2, 3):
+            elif i in (2, 3):  # For strings
                 pass
             else:
                 try:

@@ -33,6 +33,7 @@ class GeneticAlgorithm:
         self.penalty_angle = fitness_params["penalty_angle"]  # Penalty for wrong angle solutions
         self.ga_amount = fitness_params["Num_of_training_instances"]
         self.interpolation = fitness_params["Num_of_interpolation_angles"]
+        self.gripper_type = fitness_params["gripper_type"]
         # Genetic algorithm parameters
         self.num_generations = ga_params["num_generations"]
         self.num_parents_mating = ga_params["num_parents_mating"]
@@ -84,7 +85,11 @@ class GeneticAlgorithm:
         # tkinter window STOP
 
         # GA parameters
-        self.num_genes = self.number_of_links * self.interpolation * 2  # Angles and their timestamps
+        if self.gripper_type == "stiff":
+            self.num_genes = self.number_of_links * self.interpolation * 2  # Angles and their timestamps
+        elif self.gripper_type == "robotic":
+            # Angles and their timestamps and timestamp of gripper opening its claws
+            self.num_genes = self.number_of_links * self.interpolation * 2 + 1
         self.last_fitness = 0
         self.ga_instance = pygad.GA(num_generations=self.num_generations,
                                     num_parents_mating=self.num_parents_mating,
@@ -135,20 +140,25 @@ class GeneticAlgorithm:
 
             # Creating simulations to save achieved distance, time and work sum to csv file
             if self.acceptable_fitness != False:
-                minimum_solution_sim = Simulation(genetic_solution=self.minimum_solution,
-                                                  ui_flag=False,
-                                                  number_of_links=self.number_of_links,
-                                                  target_xcor=self.target_xcor,
-                                                  interpolation=self.interpolation)
+                minimum_solution_sim = Simulation(
+                    genetic_solution=self.minimum_solution,
+                    ui_flag=False,
+                    number_of_links=self.number_of_links,
+                    target_xcor=self.target_xcor,
+                    interpolation=self.interpolation,
+                    gripper=self.gripper_type
+                )
                 acceptable_solution_distance = minimum_solution_sim.error_sum[0]
                 acceptable_solution_time_of_throw = minimum_solution_sim.error_sum[2]
                 acceptable_solution_total_work_sum = minimum_solution_sim.error_sum[3]
 
-            best_solution_sim = Simulation(genetic_solution=best_solution,
-                                           ui_flag=False,
-                                           number_of_links=self.number_of_links,
-                                           target_xcor=self.target_xcor,
-                                           interpolation=self.interpolation)
+            best_solution_sim = Simulation(
+                genetic_solution=best_solution,
+                ui_flag=False,
+                number_of_links=self.number_of_links,
+                target_xcor=self.target_xcor,
+                interpolation=self.interpolation,
+                gripper=self.gripper_type)
 
             df = pd.DataFrame(
                 {
@@ -188,6 +198,7 @@ class GeneticAlgorithm:
                     "fitness_change": [self.fitness_change],
                     "Num_of_training_instances": self.ga_amount,
                     "Num_of_interpolation_angles": self.interpolation,
+                    "gripper_type": self.gripper_type,
                 }
             )
 
@@ -223,6 +234,7 @@ class GeneticAlgorithm:
                     "penalty_angle": self.penalty_angle,  # Penalty for wrong angle solutions
                     "Num_of_training_instances": self.ga_amount,
                     "Num_of_interpolation_angles": self.interpolation,
+                    "gripper_type": self.gripper_type,
                 }, index=[0]  # This fixes the "ValueError: If using all scalar values, you must pass an index" error
             )
             current_settings.to_json("settings.json")
@@ -245,11 +257,14 @@ class GeneticAlgorithm:
 
     def fitness_func(self, ga_instance, solution, solution_idx):
 
-        simulation = Simulation(genetic_solution=solution,
-                                ui_flag=False,
-                                number_of_links=self.number_of_links,
-                                target_xcor=self.target_xcor,
-                                interpolation=self.interpolation)
+        simulation = Simulation(
+            genetic_solution=solution,
+            ui_flag=False,
+            number_of_links=self.number_of_links,
+            target_xcor=self.target_xcor,
+            interpolation=self.interpolation,
+            gripper=self.gripper_type
+        )
         # fitness = 1.0 / (error_sum + 0.0001)
 
         # return [registered_distance, hit_obstacle, elapsed_time, work_sum]

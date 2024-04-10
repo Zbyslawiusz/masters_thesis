@@ -1,4 +1,5 @@
 import pymunk
+from pymunk.vec2d import Vec2d
 from math import pi
 
 # COLLISION_TYPE_DEFAULT = 0
@@ -33,6 +34,7 @@ class Manipulator:
 
         self.prev_error = 0
         self.integral = 0
+        self.claw_motor_rate = -5  # Makes robotic gripper claws hold the ball
 
         self.ball_hit_the_ground = False
         self.link_is_reversed = False
@@ -141,21 +143,21 @@ class Manipulator:
                 link_shape.friction = 1.0
                 # link_shape.filter = pymunk.ShapeFilter(group=1)
             else:
-                b = 4  # Width of each claw
+                w = 4  # Width of each claw
                 s = self.ball_radius * 2  # Space for the ball to fit in between two claws of the gripper
                 h = self.ball_radius * 1.4  # Height of the claws
 
                 vs1 = [(-width / 2, length / 2), (width / 2, length / 2),
                        (width / 2, -length / 2), (-width / 2, -length / 2)]
                 link_box = pymunk.Poly(body=link, vertices=vs1, radius=1)
-                vs2 = [(-width / 2, -length / 2), (-width / 2 + b, -length / 2),
-                       (-width / 2 + b, -length / 2 - h), (-width / 2, -length / 2 - h)]
+                vs2 = [(-width / 2, -length / 2), (-width / 2 + w, -length / 2),
+                       (-width / 2 + w, -length / 2 - h), (-width / 2, -length / 2 - h)]
                 left_claw = pymunk.Poly(body=link, vertices=vs2, radius=1)
-                vs3 = [(-width / 2 + b + s, -length / 2), (-width / 2 + (2 * b) + s, -length / 2),
-                       (-width / 2 + (2 * b) + s, -length / 2 - h), (-width / 2 + b + s, -length / 2 - h)]
+                vs3 = [(-width / 2 + w + s, -length / 2), (-width / 2 + (2 * w) + s, -length / 2),
+                       (-width / 2 + (2 * w) + s, -length / 2 - h), (-width / 2 + w + s, -length / 2 - h)]
                 right_claw = pymunk.Poly(body=link, vertices=vs3, radius=1)
 
-                ball_xcor = x - width + b + s / 2
+                ball_xcor = x - width + w + s / 2
                 ball_ycor = y - length / 2 - self.ball_radius
 
             link_joint = pymunk.PivotJoint(self.links[i - 1]["link"],  # a
@@ -179,6 +181,96 @@ class Manipulator:
                 self.ball_creator(x=ball_xcor, y=ball_ycor)
 
             x -= width
+
+    def horizontal_manipulator_creator_robotic_grabber(self):
+        """This method creates links of the manipulator. Links are laying on their left side upon creation"""
+        mass = self.first_link_mass
+        width = self.dimensions[1]  #
+        length = self.dimensions[0]
+        y = self.y - width/2  # x and y represent coordinates of pivot joints, not center of link coordinates
+        x = self.x
+
+        for i in range(1, self.num_of_links):
+            # Values of length and width are inverted in case of horizontal manipulator creator
+            mass *= self.mass_and_length_red
+            width *= self.mass_and_length_red
+            # length *= self.mass_and_length_red
+            # y -= length/2
+
+            link = pymunk.Body(mass, pymunk.moment_for_box(mass, (width, length)))
+            com_xcor = x - width/2  # Center of mass x and y coordinates
+            com_ycor = y
+            link.position = com_xcor, com_ycor
+
+            link_shape = pymunk.Poly.create_box(body=link, size=(width, length), radius=0)
+            link_shape.collision_type = self.link_collision_type
+            link_shape.friction = 1.0
+            # link_shape.filter = pymunk.ShapeFilter(group=1)
+
+            link_joint = pymunk.PivotJoint(self.links[i - 1]["link"],  # a
+                                           link,  # b
+                                           (x, y))  # pivot point
+            link_joint.error_bias = 0
+            link_joint.collide_bodies = False
+
+            self.links.append({
+                "link": link,
+                "angle": 0,
+                "previous_angle": 0,
+                "length": width,
+                "force": 0,
+                "is set": False,
+            })
+            self.space.add(self.links[-1]["link"], link_shape, link_joint)
+
+            x -= width
+
+        w = 4  # Width of each claw
+        s = self.ball_radius * 2 + 6  # Space for the ball to fit in between two claws of the gripper
+        h = self.ball_radius * 2.5  # Height of the claws
+
+        left_claw = pymunk.Body(0.2, pymunk.moment_for_box(0.2, (w, h)))
+        left_claw.position = com_xcor - width/2 + w/2, com_ycor - length/2 - h/2
+
+        left_claw_shape = pymunk.Poly.create_box(body=left_claw, size=(w, h), radius=0)
+        left_claw_shape.collision_type = self.link_collision_type
+        left_claw_shape.friction = 1.0
+
+        p1 = Vec2d(com_xcor - width/2 + w/2, com_ycor - length/2)
+        left_claw_joint = pymunk.PivotJoint(self.links[-1]["link"],  # a
+                                            left_claw,  # b
+                                            p1)  # pivot point
+        left_claw_joint.error_bias = 0
+        self.left_claw_motor = pymunk.SimpleMotor(a=self.links[-1]["link"],
+                                                  b=left_claw,
+                                                  rate=self.claw_motor_rate)
+        self.left_claw_motor.max_force = 1_000_000
+
+        right_claw = pymunk.Body(0.2, pymunk.moment_for_box(0.2, (w, h)))
+        right_claw.position = com_xcor - width/2 + 1.5*w + s, com_ycor - length/2 - h / 2
+
+        right_claw_shape = pymunk.Poly.create_box(body=right_claw, size=(w, h), radius=0)
+        right_claw_shape.collision_type = self.link_collision_type
+        right_claw_shape.friction = 1.0
+
+        p2 = Vec2d(com_xcor - width/2 + 1.5*w + s, com_ycor - length/2)
+        right_claw_joint = pymunk.PivotJoint(self.links[-1]["link"],  # a
+                                             right_claw,  # b
+                                             p2)  # pivot point
+        right_claw_joint.error_bias = 0
+        self.right_claw_motor = pymunk.SimpleMotor(a=self.links[-1]["link"],
+                                                   b=right_claw,
+                                                   rate=-self.claw_motor_rate)
+        self.right_claw_motor.max_force = 1_000_000
+
+        self.space.add(left_claw, left_claw_shape, left_claw_joint, self.left_claw_motor)
+        self.space.add(right_claw, right_claw_shape, right_claw_joint, self.right_claw_motor)
+
+        ball_xcor = com_xcor - width/2 + w + s/2
+        ball_ycor = com_ycor - length/2 - self.ball_radius
+
+        self.ball_creator(x=ball_xcor, y=ball_ycor)
+
 
     def update_links(self):
         """This method updates current and previous angle of every movable link"""

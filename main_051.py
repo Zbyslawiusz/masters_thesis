@@ -23,7 +23,7 @@ GROUND_THICKNESS = 50
 
 
 class Simulation:
-    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation):
+    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation, gripper="stiff"):
 
         self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
@@ -33,6 +33,7 @@ class Simulation:
         self.number_of_links = number_of_links
         self.interpolation = interpolation
         self.interp_functions = []  # This list contains interpolated functions for individual links
+        self.gripper_type = gripper
 
         # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
         for i in range(0, self.number_of_links):
@@ -145,22 +146,27 @@ class Simulation:
         space.add(stand, stand_shape)
 
         # Creating manipulator object
-        manipulator = Manipulator(num_of_links=self.number_of_links + 1,
-                                  mass=self.first_link_mass,
-                                  reduction=self.reduction,
-                                  x_cor=self.first_link_x_cor,
-                                  y_cor=(HEIGHT - GROUND_THICKNESS / 2) - GROUND_THICKNESS / 2 -
-                                        (self.first_link_length / 2),
-                                  length=self.first_link_length,
-                                  width=self.firs_link_width,
-                                  space=space,
-                                  ground=ground,
-                                  ball_colltype=BALL_COLLISION_TYPE,
-                                  link_colltype=LINK_COLLISION_TYPE,
-                                  )
+        manipulator = Manipulator(
+            num_of_links=self.number_of_links + 1,
+            mass=self.first_link_mass,
+            reduction=self.reduction,
+            x_cor=self.first_link_x_cor,
+            y_cor=(HEIGHT - GROUND_THICKNESS / 2) - GROUND_THICKNESS / 2 - (self.first_link_length / 2),
+            length=self.first_link_length,
+            width=self.firs_link_width,
+            space=space,
+            ground=ground,
+            ball_colltype=BALL_COLLISION_TYPE,
+            link_colltype=LINK_COLLISION_TYPE,
+        )
 
         # manipulator.vertical_manipulator_creator()
-        manipulator.horizontal_manipulator_creator_stiff_grabber()
+        if self.gripper_type == "stiff":
+            manipulator.horizontal_manipulator_creator_stiff_grabber()
+        elif self.gripper_type == "robotic":
+            manipulator.horizontal_manipulator_creator_robotic_grabber()
+        else:
+            return "Error, wrong gripper type"
         # manipulator.horizontal_gripper_creator()
 
         # Desired frame rate and simulation speed
@@ -176,6 +182,7 @@ class Simulation:
 
         hit_ground = False
         hit_obstacle = False
+        open_gripper = False
 
         step = 0
         finished = False
@@ -228,6 +235,12 @@ class Simulation:
                     force = -self.max_force
                 work_sum += abs(force * traversed_angle)
                 manipulator.simple_throw(force=force*10000, link=link)  # Moving the link
+
+                if self.gripper_type == "robotic" and elapsed_time >= self.control_values[-1] and not open_gripper:
+                # if self.gripper_type == "robotic" and elapsed_time >= 1 and not open_gripper:
+                    manipulator.right_claw_motor.rate *= -10  # Reverse robotic claw motors and open the gripper
+                    manipulator.left_claw_motor.rate *= -10
+                    open_gripper = True
                 i += i
 
             # Drawing pymunk UI ----------------------------------------------------------------------------------------
@@ -237,7 +250,7 @@ class Simulation:
                 # Draw stuff
                 space.debug_draw(draw_options)
                 pygame.display.flip()
-                clock.tick(fps * 0.25)
+                clock.tick(fps * 0.25)  # For slow motion
                 # print(link_ang_vel)
 
                 # Drawing the trail-------------------------------------------------------------------------------------
