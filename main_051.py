@@ -25,7 +25,7 @@ GROUND_THICKNESS = 50
 class Simulation:
     def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation):
 
-        self.max_force = 5  # Simulates physical constraints and safety limits of manipulator's servomotors
+        self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
         self.control_values = genetic_solution  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
@@ -122,7 +122,7 @@ class Simulation:
         space.add(ground, ground_shape)
 
         # Creating an obstacle
-        obstacle_height = 600
+        obstacle_height = 20
         obstacle_width = 10
         obstacle = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
         obstacle.position = (self.first_link_x_cor + 800, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
@@ -160,8 +160,8 @@ class Simulation:
                                   )
 
         # manipulator.vertical_manipulator_creator()
-        manipulator.horizontal_manipulator_creator()
-        manipulator.horizontal_gripper_creator()
+        manipulator.horizontal_manipulator_creator_stiff_grabber()
+        # manipulator.horizontal_gripper_creator()
 
         # Desired frame rate and simulation speed
         fps = 200
@@ -218,12 +218,16 @@ class Simulation:
                 traversed_angle = abs(link["angle"] - link["previous_angle"])
                 # Passing the current timestamp to interpolated function in order to calculate current desired angle
                 desired_angle = self.interp_functions[i](elapsed_time)
-                error = abs(desired_angle - link["angle"])
+                # print(f"Desired angle: {desired_angle}, elapsed time: {elapsed_time}")
+                error = desired_angle - link["angle"]
+                # print(f"Error: {error}")
                 force = manipulator.pid_force_calculator(error=error, dt=dt)
                 if force > self.max_force:
                     force = self.max_force
+                elif force < -self.max_force:
+                    force = -self.max_force
                 work_sum += abs(force * traversed_angle)
-                manipulator.simple_throw(force=force*0, link=link)  # Moving the link
+                manipulator.simple_throw(force=force*10000, link=link)  # Moving the link
                 i += i
 
             # Drawing pymunk UI ----------------------------------------------------------------------------------------
@@ -233,7 +237,7 @@ class Simulation:
                 # Draw stuff
                 space.debug_draw(draw_options)
                 pygame.display.flip()
-                clock.tick(fps)
+                clock.tick(fps * 0.25)
                 # print(link_ang_vel)
 
                 # Drawing the trail-------------------------------------------------------------------------------------
