@@ -14,7 +14,8 @@ class Manipulator:
         self.links = []
         self.x = x_cor
         self.y = y_cor
-        self.dimensions = [width, length]  # Dimensions of the first link
+        # Dimensions of the first link, they are reverted if horizontal manipulator creator is used
+        self.dimensions = [width, length]
         self.ground = ground
         self.space = space
         self.throw_on = True
@@ -23,9 +24,12 @@ class Manipulator:
         # self.kp = 1
         # self.ki = 0.1
         # self.kd = 0.001
-        self.kp = 10
-        self.ki = 0.5
-        self.kd = 0.09
+        self.kp = 1
+        self.ki = 0.1
+        self.kd = 0.03
+        # self.kp = 10
+        # self.ki = 0.5
+        # self.kd = 0.09
 
         self.prev_error = 0
         self.integral = 0
@@ -66,6 +70,7 @@ class Manipulator:
         derivative = (error - self.prev_error) / dt
         force = self.kp * error + self.ki * self.integral + self.kd * derivative
         self.prev_error = error
+        # print(force)
         return force
 
     def vertical_manipulator_creator(self):
@@ -106,30 +111,56 @@ class Manipulator:
 
             y -= length
 
-    def horizontal_manipulator_creator(self):
+    def horizontal_manipulator_creator_stiff_grabber(self):
         """This method creates links of the manipulator. Links are laying on their left side upon creation"""
         mass = self.first_link_mass
         width = self.dimensions[1]  #
         length = self.dimensions[0]
-        y = self.y - width/2
+        y = self.y - width/2  # x and y represent coordinates of pivot joints, not center of link coordinates
         x = self.x
+
+        last_link = False
+
         for i in range(1, self.num_of_links):
+            if i == self.num_of_links - 1:
+                last_link = True
+            # Values of length and width are inverted in case of horizontal manipulator creator
             mass *= self.mass_and_length_red
             width *= self.mass_and_length_red
             # length *= self.mass_and_length_red
             # y -= length/2
 
             link = pymunk.Body(mass, pymunk.moment_for_box(mass, (width, length)))
-            link.position = x - width/2, y
+            com_xcor = x - width/2  # Center of mass x and y coordinates
+            com_ycor = y
+            link.position = com_xcor, com_ycor
 
-            link_shape = pymunk.Poly.create_box(body=link, size=(width, length), radius=0)
-            link_shape.collision_type = self.link_collision_type
-            link_shape.friction = 1.0
-            # link_shape.filter = pymunk.ShapeFilter(group=1)
+            if not last_link:
+                link_shape = pymunk.Poly.create_box(body=link, size=(width, length), radius=0)
+                link_shape.collision_type = self.link_collision_type
+                link_shape.friction = 1.0
+                # link_shape.filter = pymunk.ShapeFilter(group=1)
+            else:
+                b = 4  # Width of each claw
+                s = self.ball_radius * 2  # Space for the ball to fit in between two claws of the gripper
+                h = self.ball_radius * 1.4  # Height of the claws
 
-            link_joint = pymunk.PivotJoint(self.links[i - 1]["link"],   # a
-                                           link,                # b
-                                           (x, y))    # pivot point
+                vs1 = [(-width / 2, length / 2), (width / 2, length / 2),
+                       (width / 2, -length / 2), (-width / 2, -length / 2)]
+                link_box = pymunk.Poly(body=link, vertices=vs1, radius=1)
+                vs2 = [(-width / 2, -length / 2), (-width / 2 + b, -length / 2),
+                       (-width / 2 + b, -length / 2 - h), (-width / 2, -length / 2 - h)]
+                left_claw = pymunk.Poly(body=link, vertices=vs2, radius=1)
+                vs3 = [(-width / 2 + b + s, -length / 2), (-width / 2 + (2 * b) + s, -length / 2),
+                       (-width / 2 + (2 * b) + s, -length / 2 - h), (-width / 2 + b + s, -length / 2 - h)]
+                right_claw = pymunk.Poly(body=link, vertices=vs3, radius=1)
+
+                ball_xcor = x - width + b + s / 2
+                ball_ycor = y - length / 2 - self.ball_radius
+
+            link_joint = pymunk.PivotJoint(self.links[i - 1]["link"],  # a
+                                           link,  # b
+                                           (x, y))  # pivot point
             link_joint.error_bias = 0
             link_joint.collide_bodies = False
 
@@ -141,7 +172,11 @@ class Manipulator:
                 "force": 0,
                 "is set": False,
             })
-            self.space.add(self.links[-1]["link"], link_shape, link_joint)
+            if not last_link:
+                self.space.add(self.links[-1]["link"], link_shape, link_joint)
+            else:
+                self.space.add(self.links[-1]["link"], link_box, left_claw, right_claw, link_joint)
+                self.ball_creator(x=ball_xcor, y=ball_ycor)
 
             x -= width
 
@@ -152,17 +187,12 @@ class Manipulator:
             link["angle"] = link["link"].angle - pi/2  # subtracting pi/2 in case of horizontal manipulator creator
 
     def simple_throw(self, force, link):
-        """This method simulates the simplest throw imaginable"""
+        """This method applies force as momentum to the passed link"""
         length = link["length"]
         link["link"].apply_force_at_local_point((0, -force),
                                                 (-length/2, 0))
         link["link"].apply_force_at_local_point((0, force),
                                                 (length/2, 0))
-
-    def pid_brake(self, link):
-        # WORK IN PROGRESS
-        if link["is set"]:
-            link["link"].angular_velocity = 0  # freeze links in place
 
     def one_link_throw(self, force):
         if self.throw_on:
@@ -177,83 +207,13 @@ class Manipulator:
             for link in self.links[1:]:
                 link["link"].velocity = 0, 0  # freeze links in place
 
-    def horizontal_gripper_creator(self):
-        width = 6
-        length = 20
-        x = self.links[-1]["link"].position[0]
-        left_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
-        left_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"]/2 + width/2 - 10,  # + 3
-                              self.links[-1]["link"].position[1] - self.dimensions[0])
-
-        left_claw_shape = pymunk.Poly.create_box(body=left_claw, size=(width, length), radius=0)
-        left_claw_shape.collision_type = self.link_collision_type
-        left_claw_shape.friction = 1.0
-
-        left_claw_joint = pymunk.PinJoint(left_claw,
-                                          self.links[-1]["link"],
-                                          (0, length/2 - 1),
-                                          (-self.links[-1]["length"]/2 + width/2 - 2, 0))  # - 2
-        left_claw_joint.error_bias = 0
-        # left_claw_joint.collide_bodies = False
-        self.space.add(left_claw, left_claw_shape, left_claw_joint)
-
-        right_claw = pymunk.Body(0.1, pymunk.moment_for_box(0.1, (width, length)))
-        right_claw.position = (self.links[-1]["link"].position[0] - self.links[-1]["length"] / 2 + width / 2 +
-                               2 * self.ball_radius + width - 2,  # - 2
-                               self.links[-1]["link"].position[1] - self.dimensions[0])
-
-        right_claw_shape = pymunk.Poly.create_box(body=right_claw, size=(width, length), radius=0)
-        right_claw_shape.collision_type = self.link_collision_type
-        right_claw_shape.friction = 1.0
-
-        right_claw_joint = pymunk.PinJoint(right_claw,
-                                           self.links[-1]["link"],
-                                           (0, length / 2 - 1),
-                                           (-self.links[-1]["length"] / 2 + width / 2 +
-                                            2 * self.ball_radius + width + 2, 0))  # + 2
-        right_claw_joint.error_bias = 0
-        # right_claw_joint.collide_bodies = False
-
-        self.space.add(right_claw, right_claw_shape, right_claw_joint)
-
-        right_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
-                                                     right_claw,
-                                                     (-self.links[-1]["length"] / 2 + width / 2 +
-                                                      2 * self.ball_radius + width, 0),
-                                                     (-self.links[-1]["length"] / 2 + width / 2 +
-                                                      2 * self.ball_radius + width + 2, -20,),  # + 2
-                                                     (0, 0))
-        right_claw_groove_joint.error_bias = 0
-
-        self.space.add(right_claw_groove_joint)
-
-        left_claw_groove_joint = pymunk.GrooveJoint(self.links[-1]["link"],
-                                                    left_claw,
-                                                    (-self.links[-1]["length"]/2 + width/2, 0),
-                                                    (-self.links[-1]["length"]/2 + width/2 - 20 - 2, -20),  # - 2
-                                                    (0, 0))
-        left_claw_groove_joint.error_bias = 0
-
-        self.space.add(left_claw_groove_joint)
-
-        self.horizontal_ball_creator(width=width)
-
-    def horizontal_ball_creator(self, width):
+    def ball_creator(self, x, y):
         """This method creates the ball that is to be thrown"""
-        (x, y) = self.links[-1]["link"].position
-        self.ball.position = (x - self.links[-1]["length"] / 2 + width / 2 +
-                              self.ball_radius + width / 2, y - self.dimensions[0] / 2 - self.ball_radius)
+        self.ball.position = x, y
         self.space.add(self.ball, self.ball_shape)
-
-    def get_angles(self):
-        return self.links[-1]["link"].angle
 
     def ball_hit_ground(self, arbiter, space, data):
         self.ball_hit_the_ground = True
-        return True
-
-    def link_reversed(self, arbiter, space, data):
-        self.link_is_reversed = True
         return True
 
     def obstacle_hit(self, arbiter, space, data):
