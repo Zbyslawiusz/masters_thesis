@@ -25,9 +25,9 @@ class Manipulator:
         # self.kp = 1
         # self.ki = 0.1
         # self.kd = 0.001
-        self.kp = 1
+        self.kp = 0.5
         self.ki = 0.1
-        self.kd = 0.03
+        self.kd = 0  # 0.03
         # self.kp = 10
         # self.ki = 0.5
         # self.kd = 0.09
@@ -275,8 +275,17 @@ class Manipulator:
     def update_links(self):
         """This method updates current and previous angle of every movable link"""
         for link in self.links[1:]:
+            angle = link["link"].angle
+            if True:  # Placeholder, means horizontal manipulator is used
+                angle -= pi/2  # subtracting pi/2 in case of horizontal manipulator creator
             link["previous_angle"] = link["angle"]
-            link["angle"] = link["link"].angle - pi/2  # subtracting pi/2 in case of horizontal manipulator creator
+            if angle > 2*pi:
+                angle = 0 + angle % (2*pi)
+            elif angle < -2*pi:
+                angle = 0 - angle % (2 * pi)
+            else:
+                pass
+            link["angle"] = angle
 
     def simple_throw(self, force, link):
         """This method applies force as momentum to the passed link"""
@@ -310,4 +319,7 @@ class Manipulator:
 
     def obstacle_hit(self, arbiter, space, data):
         self.obstacle_is_hit = True
+        return True
+
+    def ball_not_touching_gripper(self, arbiter, space, data):
         return True

@@ -1,5 +1,8 @@
-import math
 import time
+import uuid
+import os, shutil
+from PIL import ImageGrab
+import pygetwindow as gw
 
 import pygame
 import pymunk
@@ -23,13 +26,40 @@ GROUND_THICKNESS = 50
 
 
 class Simulation:
-    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation, gripper="stiff"):
+    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation,
+                 time_of_throw=0, picks_or_not="False", gripper="stiff", type="best"):
+
+        self.filenames = []  # List storing filenames of screenshots if they're taken
 
         self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
         self.control_values = genetic_solution  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
         self.draw_ui = ui_flag  # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
+
+        # To make screenshots or not
+        if picks_or_not:
+            self.make_pics = True
+            self.interval = time_of_throw / 16
+
+            # Folder containing screenshots is cleaned upon creating simulation with GUI
+            if type == "best":
+                folder = "./Pymunk_pics/Best_sim"
+            elif type == "acceptable":
+                folder = "./Pymunk_pics/Acceptable_sim"
+            for filename in os.listdir(folder):
+                file_path = os.path.join(folder, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Failed to delete {file_path}. Reason: {e}")
+        else:
+            self.make_pics = False
+            self.interval = 0
+
         self.number_of_links = number_of_links
         self.interpolation = interpolation
         self.interp_functions = []  # This list contains interpolated functions for individual links
@@ -72,6 +102,14 @@ class Simulation:
         self.stand_width = 800
         self.error_sum = []  # Distance from where the ball hit the ground to the intended x coordinate
         self.simulation(self.control_values, self.draw_ui)
+
+        # Moving the screenshot files to their designated folder
+        if self.draw_ui and type == "acceptable":
+            for filename in self.filenames:
+                shutil.move(f"./{filename}", "./Pymunk_pics/Acceptable_sim")
+        elif self.draw_ui and type == "best":
+            for filename in self.filenames:
+                shutil.move(f"./{filename}", "./Pymunk_pics/Best_sim")
         return
 
     def collision(self, arbiter, space, data):
@@ -98,6 +136,9 @@ class Simulation:
             screen = pygame.display.set_mode((WIDTH, HEIGHT))
             draw_options = pymunk.pygame_util.DrawOptions(screen)
             clock = pygame.time.Clock()
+
+            # print(gw.getAllTitles())  # 'pygame window'
+
         running = True
         # font = pygame.font.SysFont("Arial", 16)
 
@@ -112,6 +153,7 @@ class Simulation:
         handler_obstacle = space.add_collision_handler(BALL_COLLISION_TYPE, OBSTACLE_COLLISION_TYPE)
         handler_ball_trail = space.add_collision_handler(BALL_COLLISION_TYPE, 37)
         handler_manipulator_trail = space.add_collision_handler(LINK_COLLISION_TYPE, 37)
+        handler_ball_release = space.add_collision_handler(BALL_COLLISION_TYPE, LINK_COLLISION_TYPE)
 
         # Creating ground
         ground = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
@@ -183,11 +225,13 @@ class Simulation:
         hit_ground = False
         hit_obstacle = False
         open_gripper = False
+        ball_released = False
 
         step = 0
         finished = False
 
         elapsed_time = 0
+        pick_time = self.interval
         # Main loop ----------------------------------------------------------------------------------------------------
         while running:
 
@@ -210,6 +254,9 @@ class Simulation:
             if not hit_obstacle:  # !!!!!!!!!!!!!!!!Tu moze byc blad - sprawdzanie kolizji z przeszkoda tylko raz
                 handler_obstacle.begin = manipulator.obstacle_hit  # Collision between ball and obstacle
                 hit_obstacle = True
+            if not ball_released and elapsed_time > 0.2:  # Checks if the ball stopped touching the gripper
+                handler_ball_release.separate = manipulator.ball_not_touching_gripper
+                ball_released = True
 
             if manipulator.ball_hit_the_ground and not hit_ground:
                 registered_distance = abs(ball_xcor - self.x_cor)
@@ -224,9 +271,20 @@ class Simulation:
             for link in manipulator.links[1:]:
                 traversed_angle = abs(link["angle"] - link["previous_angle"])
                 # Passing the current timestamp to interpolated function in order to calculate current desired angle
-                desired_angle = self.interp_functions[i](elapsed_time)
-                # print(f"Desired angle: {desired_angle}, elapsed time: {elapsed_time}")
-                error = desired_angle - link["angle"]
+                if not ball_released:
+                    desired_angle = self.interp_functions[i](elapsed_time)
+                    # Correcting the angles for pymunk
+                    if desired_angle > 2 * pi:
+                        desired_angle = 0 + desired_angle % (2 * pi)
+                    elif desired_angle < -2 * pi:
+                        desired_angle = 0 - desired_angle % (2 * pi)
+                    else:
+                        pass
+                    # print(f"Desired angle: {desired_angle}, elapsed time: {elapsed_time}")
+                if i == 0:
+                    error = desired_angle - link["angle"]
+                else:
+                    error = desired_angle - manipulator.links[i - 1]["angle"]
                 # print(f"Error: {error}")
                 force = manipulator.pid_force_calculator(error=error, dt=dt)
                 if force > self.max_force:
@@ -241,7 +299,7 @@ class Simulation:
                     manipulator.right_claw_motor.rate *= -10  # Reverse robotic claw motors and open the gripper
                     manipulator.left_claw_motor.rate *= -10
                     open_gripper = True
-                i += i
+                i += 1
 
             # Drawing pymunk UI ----------------------------------------------------------------------------------------
             if ui_flag:
@@ -252,6 +310,22 @@ class Simulation:
                 pygame.display.flip()
                 clock.tick(fps * 0.25)  # For slow motion
                 # print(link_ang_vel)
+
+                # Making screenshots of the pymunk window
+                if self.make_pics and elapsed_time >= pick_time:
+                    window = gw.getWindowsWithTitle('pygame window')[0]
+                    # Capturing a specific region of the screen (left, top, right, bottom)
+                    screenshot = ImageGrab.grab(bbox=(window.left,
+                                                      window.top,
+                                                      window.bottomright[0],
+                                                      window.bottomright[1]))
+                    # Saving the screenshot as a file with a unique name
+                    filename = f"{uuid.uuid4().hex}.png"
+                    screenshot.save(filename)
+                    # Closing the screenshot
+                    screenshot.close()
+                    self.filenames.append(filename)
+                    pick_time += self.interval
 
                 # Drawing the trail-------------------------------------------------------------------------------------
                 if step < 10 and not hit_ground and not finished:

@@ -1,4 +1,5 @@
 import tkinter as tk
+import os
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -46,11 +47,15 @@ class Menu:
         self.down_button = (tk.Button(text="Cycle down", command=self.down)
                             .grid(row=1, column=2))
         # Start simulation from selected (highlighted) experiment
-        self.start_sim_button = (tk.Button(text="START", font=("Consolas", 15, "bold"), command=self.start_sim)
+        self.start_sim_button = (tk.Button(text="START", font=("Consolas", 15, "bold"),
+                                           command=lambda: self.start_sim(False))
                                  .grid(row=2, column=1))
+        self.start_sim_with_picks_button = (tk.Button(text="START & screenshots", font=("Consolas", 15, "bold"),
+                                                      command=lambda: self.start_sim(True))
+                                            .grid(row=3, column=1))
         # Close GUI button, shuts down the programme
         self.shutdown_button = (tk.Button(text="SHUTDOWN", font=("Consolas", 15, "bold"), command=self.shutdown)
-                                .grid(row=3, column=1))
+                                .grid(row=4, column=1))
 
         # Start fresh training button with a popup window
         self.start_training_button = (tk.Button(text="Start Fresh Training", font=("Consolas", 15, "bold"),
@@ -130,6 +135,19 @@ class Menu:
         if self.csv_exists and self.json_exists:
             self.info_label.config(text="Solution and settings files found. You are free to experiment.")
 
+        # Folders for storing simulation results screenshots
+        path1 = "./Pymunk_pics/Acceptable_sim"
+        path2 = "./Pymunk_pics/Best_sim"
+        # Checking if the specified path exists or not
+        if not os.path.exists(path1):
+            # Creating a new directory if it does not exist
+            os.makedirs(path1)
+            print("The new directory is created!")
+        if not os.path.exists(path2):
+            # Creating a new directory if it does not exist
+            os.makedirs(path2)
+            print("The new directory is created!")
+
     def up(self):
         """Cycles list of labels up"""
         if self.highlighted - 1 >= 0:
@@ -180,7 +198,7 @@ class Menu:
             label.grid(row=1+i+1, column=0, columnspan=2)
             i += 1
 
-    def start_sim(self):
+    def start_sim(self, picks):
         """Starts a simulation based on the highlighted solution from the list of labels.
         First simulation depicts the acceptable solution if it exists.
         Second simulation shows the best solution."""
@@ -197,7 +215,10 @@ class Menu:
                 number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
                 target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
                 interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
-                gripper=self.solutions_file["gripper_type"][self.highlighted]
+                gripper=self.solutions_file["gripper_type"][self.highlighted],
+                time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
+                picks_or_not=picks,
+                type="acceptable",
             )
 
         best_solution_sim = Simulation(
@@ -206,7 +227,10 @@ class Menu:
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
             interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
-            gripper=self.solutions_file["gripper_type"][self.highlighted]
+            gripper=self.solutions_file["gripper_type"][self.highlighted],
+            time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
+            picks_or_not=picks,
+            type="best",
         )
 
         generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
