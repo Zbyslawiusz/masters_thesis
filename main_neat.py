@@ -26,20 +26,25 @@ GROUND_THICKNESS = 50
 
 
 class Simulation:
-    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation,
+    def __init__(self, net, ui_flag, number_of_links, target_xcor, interpolation,
                  time_of_throw=1_000_000, picks_or_not="False", gripper="stiff", type="best"):
 
         self.filenames = []  # List storing filenames of screenshots if they're taken
 
+        self.dw = 0.95  # distance weight
+        self.tw = 0.4  # elapsed time weight
+        self.ww = 0.1  # work sum weight
+
         self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
-        self.control_values = genetic_solution  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
+        self.net = net  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
         self.draw_ui = ui_flag  # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
 
         # To make screenshots or not
+        self.make_pics = False
         if picks_or_not:
-            self.make_pics = True
+            # self.make_pics = True
             self.interval = time_of_throw / 16
 
             # Folder containing screenshots is cleaned every time new screenshots are to be taken
@@ -65,36 +70,6 @@ class Simulation:
         self.interp_functions = []  # This list contains interpolated functions for individual links
         self.gripper_type = gripper
 
-        # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
-        for i in range(0, self.number_of_links):
-            angles = []  # Contains desired angles for each link
-            timestamps = []  # Stores timestamps corresponding to desired angles for each link
-            values = self.control_values[i*self.interpolation*2:i*self.interpolation*2+self.interpolation*2]
-            for _ in range(0, len(values)):
-                if _ % 2 != 0:  # Check every even number in genetic solution to get angle, odd numbers store timestamps
-                    timestamps.append(values[_])
-                else:  # Even numbers store angles
-                    angles.append(values[_])
-            for _ in range(0, len(timestamps)):  # Timestamps have to be monotonically increasing, if they're not scipy will crash
-                try:
-                    if timestamps[_+1] <= timestamps[_]:
-                        timestamps[_+1] = timestamps[_] + 0.001
-                except IndexError:
-                    pass
-                if angles[_] < -pi/2:  # Making sure angles are in a correct range
-                    angles[_] = -pi/2
-                elif angles[_] > pi/2:
-                    angles[_] = pi/2
-            # Simulation starts in time=0, therefore interpolation must include value range starting at 0 or scipy will crash
-            if timestamps[0] > 0 or timestamps[0] < 0:
-                timestamps[0] = 0
-                # timestamps.insert(0, 0)
-                # angles.insert(0, 0)
-
-            # It is now possible to interpolate values separated into angles and timestamps
-            interp_func = interp1d(np.array(timestamps), np.array(angles), kind="cubic", fill_value="extrapolate")
-            self.interp_functions.append(interp_func)
-
         self.first_link_length = 150
         self.firs_link_width = 20
         self.first_link_mass = 1
@@ -102,7 +77,7 @@ class Simulation:
         self.reduction = 0.95
         self.stand_width = 800
         self.error_sum = []  # Distance from where the ball hit the ground to the intended x coordinate
-        self.simulation(self.control_values, self.draw_ui)
+        self.simulation(self.net, self.draw_ui)
 
         # Moving the screenshot files to their designated folder
         if self.draw_ui and type == "acceptable":
@@ -166,7 +141,7 @@ class Simulation:
         space.add(ground, ground_shape)
 
         # Creating an obstacle
-        obstacle_height = 400
+        obstacle_height = 20
         obstacle_width = 10
         obstacle = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
         obstacle.position = (self.first_link_x_cor + 800, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
@@ -233,6 +208,10 @@ class Simulation:
 
         elapsed_time = 0
         pick_time = self.interval
+        nuke_fitness = False
+        timestamp_violations = 0
+        angle_violations = 0
+
         # Main loop ----------------------------------------------------------------------------------------------------
         while running:
 
@@ -244,6 +223,8 @@ class Simulation:
             # State vector reading (current angles, current angular velocities of links) -------------------------------
             ball_xcor = manipulator.ball.position[0]
             manipulator.update_links()  # Update current and previous angle of every link ------------------------------
+            # Distance between the ball and the target x coordinate on the ground
+            distance = ball_xcor - self.x_cor
 
             # Detecting collisions with ground and resting point and others --------------------------------------------
             if not hit_ground:
@@ -267,6 +248,65 @@ class Simulation:
             # print(f"Ball's x, y coordinates: {manipulator.ball.position[0]}, {manipulator.ball.position[1]}\n"
             #       f"Ball's vx, vy velocity: {manipulator.ball.velocity[0]}, {manipulator.ball.velocity[1]}\n")
 
+            # Calculating error sum used for first net activation
+            error = [self.dw * distance, self.tw * elapsed_time, self.ww * work_sum]
+
+            # ----------------------------------------------------------------------------------------------------------
+            # Activating the neural network based on current error every main loop iteration ---------------------------
+            # ----------------------------------------------------------------------------------------------------------
+            solution = self.net.activate(error)  # Acquiring solution from the neural network
+            # print(solution)
+            penalty = 0  # Stores how many times solution violated rules
+            for i in range(0, len(solution)):
+                if i % 2 != 0:
+                    if solution[i] < 0 or solution[i] > 0.5:
+                        # Checking for timestamps outside reasonable range (0 - 0.5 seconds)
+                        timestamp_violations += 1
+                    try:  # Checking for incorrect timestamps (they have to be monotonically increasing)
+                        if solution[i + 1] <= solution[i]:
+                            nuke_fitness = True
+                            # timestamp_violations += 1
+                    except IndexError:
+                        pass
+                else:
+                    if solution[i] > pi / 2 or solution[i] < -pi / 2:
+                        angle_violations += 1  # Checking for incorrect desired link angles
+            # ----------------------------------------------------------------------------------------------------------
+            # End of NEAT algorithm part of code -----------------------------------------------------------------------
+            # ----------------------------------------------------------------------------------------------------------
+
+            # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
+            self.interp_functions = []
+            for i in range(0, self.number_of_links):
+                angles = []  # Contains desired angles for each link
+                timestamps = []  # Stores timestamps corresponding to desired angles for each link
+                values = solution[i * self.interpolation * 2:i * self.interpolation * 2 + self.interpolation * 2]
+                for _ in range(0, len(values)):
+                    # Check every even number in genetic solution to get angle, odd numbers store timestamps
+                    if _ % 2 != 0:
+                        timestamps.append(values[_])
+                    else:  # Even numbers store angles
+                        angles.append(values[_])
+                for _ in range(0, len(timestamps)):  # Timestamps have to be monotonically increasing, if they're not
+                    # scipy will crash
+                    try:
+                        if timestamps[_ + 1] <= timestamps[_]:
+                            timestamps[_ + 1] = timestamps[_] + 0.001
+                    except IndexError:
+                        pass
+                    if angles[_] < -pi / 2:  # Making sure angles are in a correct range
+                        angles[_] = -pi / 2
+                    elif angles[_] > pi / 2:
+                        angles[_] = pi / 2
+                # Simulation starts in time=0, therefore interpolation must include value range starting at 0
+                # or scipy will crash
+                if timestamps[0] > 0 or timestamps[0] < 0:
+                    timestamps[0] = 0
+
+                # It is now possible to interpolate values separated into angles and timestamps
+                interp_func = interp1d(np.array(timestamps), np.array(angles), kind="cubic", fill_value="extrapolate")
+                self.interp_functions.append(interp_func)
+
             # Moving the links -----------------------------------------------------------------------------------------
             i = 0
             for link in manipulator.links[1:]:
@@ -286,11 +326,11 @@ class Simulation:
                     desired_angle = link["desired angle"]
                     # print(f"Desired angle: {desired_angle}, elapsed time: {elapsed_time}")
                 if i == 0:
-                    error = desired_angle - link["angle"]
+                    angle_error = desired_angle - link["angle"]
                 else:
-                    error = desired_angle - manipulator.links[i - 1]["angle"]
+                    angle_error = desired_angle - manipulator.links[i - 1]["angle"]
                 # print(f"Error: {error}")
-                force = manipulator.pid_force_calculator(error=error, dt=dt)
+                force = manipulator.pid_force_calculator(error=angle_error, dt=dt)
                 if force > self.max_force:
                     force = self.max_force
                 elif force < -self.max_force:
@@ -298,8 +338,7 @@ class Simulation:
                 work_sum += abs(force * traversed_angle)
                 manipulator.simple_throw(force=force*10000, link=link)  # Moving the link
 
-                if self.gripper_type == "robotic" and elapsed_time >= self.control_values[-1] and not open_gripper:
-                # if self.gripper_type == "robotic" and elapsed_time >= 1 and not open_gripper:
+                if self.gripper_type == "robotic" and elapsed_time >= solution[-1] and not open_gripper:
                     manipulator.right_claw_motor.rate *= -10  # Reverse robotic claw motors and open the gripper
                     manipulator.left_claw_motor.rate *= -10
                     open_gripper = True
@@ -359,7 +398,8 @@ class Simulation:
             # Finishing simulation by hitting the ground ---------------------------------------------------------------
             if hit_ground and not finished:
                 finished = True
-                self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
+                self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum, timestamp_violations,
+                                  angle_violations, nuke_fitness]
                 if ui_flag:
                     print(f"\nDistance: {registered_distance}.\n"
                           f"Elapsed time: {elapsed_time}.\n"
@@ -371,7 +411,8 @@ class Simulation:
             # Timeout --------------------------------------------------------------------------------------------------
             elif elapsed_time > 7 and not finished:
                 finished = True
-                self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
+                self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum, timestamp_violations,
+                                  angle_violations, nuke_fitness]
                 if ui_flag:
                     print(f"\nDistance: {registered_distance}.\n"
                           f"Elapsed time: {elapsed_time}.\n"

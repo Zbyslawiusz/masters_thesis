@@ -27,7 +27,7 @@ class Manipulator:
         # self.kd = 0.001
         self.kp = 0.5
         self.ki = 0.1
-        self.kd = 0  # 0.03
+        self.kd = 0.001  # 0.03
         # self.kp = 10
         # self.ki = 0.5
         # self.kd = 0.09
@@ -62,6 +62,7 @@ class Manipulator:
             "position": first_link.position,
             "force": 0,
             "is set": False,
+            "desired angle": 0,
             })
         # self.horizontal_manipulator_creator()
 
@@ -108,6 +109,7 @@ class Manipulator:
                 "position": link.position,
                 "force": 0,
                 "is set": False,
+                "desired angle": 0,
             })
             self.space.add(link, link_shape, link_joint)
 
@@ -173,6 +175,7 @@ class Manipulator:
                 "length": width,
                 "force": 0,
                 "is set": False,
+                "desired angle": 0,
             })
             if not last_link:
                 self.space.add(self.links[-1]["link"], link_shape, link_joint)
@@ -220,6 +223,7 @@ class Manipulator:
                 "length": width,
                 "force": 0,
                 "is set": False,
+                "desired angle": 0,
             })
             self.space.add(self.links[-1]["link"], link_shape, link_joint)
 

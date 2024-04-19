@@ -180,6 +180,7 @@ class Menu:
             n = self.view_cap
             print(n)
         self.label_list = [tk.Label(text="", font=("Consolas", 10, "bold")) for _ in range(0, n)]  # List o labels
+        self.currently_viewed = [_ for _ in range(0, n)]  # List that tells which solutions are viewed at the moment
         for label in self.label_list:
             num = self.currently_viewed[i]
             if num == self.highlighted:

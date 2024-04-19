@@ -257,6 +257,8 @@ class GeneticAlgorithm:
 
     def fitness_func(self, ga_instance, solution, solution_idx):
 
+        nuke_fitness = False
+
         simulation = Simulation(
             genetic_solution=solution,
             ui_flag=False,
@@ -279,17 +281,21 @@ class GeneticAlgorithm:
 
         for i in range(0, self.num_genes):
             if i % 2 != 0:
-                if solution[i] < 0 or solution[i] > 2:
-                    # Penalizing for timestamps outside reasonable range (0 - 2 seconds)
+                if solution[i] < 0 or solution[i] > 0.5:
+                    # Penalizing for timestamps outside reasonable range (0 - 0.5 seconds)
                     fitness -= self.penalty_angle
                 try:  # Penalizing the GA for incorrect timestamps (they have to be monotonically increasing)
                     if solution[i + 1] <= solution[i]:
+                        # nuke_fitness = True
                         fitness -= self.penalty_angle
                 except IndexError:
                     pass
             else:
                 if solution[i] > pi/2 or solution[i] < -pi/2:
                     fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
+
+        if nuke_fitness:
+            fitness = 0
 
         if simulation.error_sum[0] <= 10 and not self.is_set:  # Acquiring the acceptable solution
             self.is_set = True
@@ -325,7 +331,8 @@ class GeneticAlgorithm:
             # Displayed in training progress window
             self.num_of_generation_label.config(text=f"Current generation: {ga_instance.generations_completed}")
             # Displayed in training progress window
-            self.fitness_label.config(text=f"Highest achieved fitness so far: "
-                                           f"{round((ga_instance.best_solution(
-                                               pop_fitness=ga_instance.last_generation_fitness)[1]), 3)}")
+            self.fitness_label.config(
+                text=f"Highest achieved fitness so far: "
+                     f"{round((ga_instance.best_solution(pop_fitness=ga_instance.last_generation_fitness)[1]), 3)}"
+            )
             self.progress_window.update()
