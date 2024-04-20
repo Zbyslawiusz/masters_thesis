@@ -1,11 +1,15 @@
 import tkinter as tk
 import os
+import uuid
+import time
+import gzip
+import pickle
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from main_051 import Simulation
-from pygad_0597 import GeneticAlgorithm
+from main_neat import Simulation
+from neat_algorithm import NeatAlgorithm
 
 
 class Menu:
@@ -22,14 +26,37 @@ class Menu:
         self.highlighted = 0
         # self.main_func()
 
+        self.searched_values = []
+
+        with open("config-feedforward", "r") as file:
+            self.content = file.readlines()
+
+        self.values = []
+
+    def search_function(self, line, value):
+        if line.replace(" ", "")[:len(value)] == value:
+            value = line.replace(" ", "")[len(value) + 1:-1]
+            self.values.append(value)
+
+    # @staticmethod  # TypeError: NeatAlgorithm.neat_start() takes 1 positional argument but 2 were given
+    def modify_function(self, line, value, desired_value):
+        if line.replace(" ", "")[:len(value)] == value:
+            pos = line.find("=")
+            new_line = line[:pos + 1]
+            new_line += f" {desired_value}\n"
+            # print(new_line)
+            return new_line
+        else:
+            return line
+
     def main_func(self, param_queue):
         self.queue = param_queue
         # Creating the main window\
         self.window = tk.Tk()
-        self.window.title("Ball Thrower x2000")
+        self.window.title("Ball Thrower x3000")
         self.window.config(padx=50, pady=50, bg="white")
 
-        self.main_label = tk.Label(text="Simulate throw or begin GA training", font=("Consolas", 64, "bold"))
+        self.main_label = tk.Label(text="Simulate throw or begin NEAT training", font=("Consolas", 64, "bold"))
         self.main_label.grid(row=0, column=0, columnspan=3)
 
         self.info_label = tk.Label(text="", font=("Consolas", 15, "bold"))
@@ -108,7 +135,7 @@ class Menu:
         """Checks existence of settings and solutions files. Displays results on main window's info_label."""
         # Checking for file containing results of experiments
         try:
-            self.solutions_file = pd.read_csv("solution.csv")
+            self.solutions_file = pd.read_csv("solution_neat.csv")
         except FileNotFoundError:
             # pass
             self.csv_exists = False
@@ -119,7 +146,7 @@ class Menu:
             self.max_index = self.num_of_solutions - 1  # Determining maximum index for a row in a column
         # Checking for file containing las used GA and fitness params
         try:
-            self.settings_file = pd.read_json("settings.json")
+            self.settings_file = pd.read_json("settings_neat.json")
         except FileNotFoundError:
             # pass
             self.json_exists = False
@@ -135,18 +162,14 @@ class Menu:
         if self.csv_exists and self.json_exists:
             self.info_label.config(text="Solution and settings files found. You are free to experiment.")
 
-        # Folders for storing simulation results screenshots
-        path1 = "./Pymunk_pics/Acceptable_sim"
-        path2 = "./Pymunk_pics/Best_sim"
+        # Folders for storing simulation screenshots and trained neat models
+        paths = ["./Pymunk_pics/Acceptable_sim", "./Pymunk_pics/Best_sim", "./neat-models"]
         # Checking if the specified path exists or not
-        if not os.path.exists(path1):
-            # Creating a new directory if it does not exist
-            os.makedirs(path1)
-            print("The new directory is created!")
-        if not os.path.exists(path2):
-            # Creating a new directory if it does not exist
-            os.makedirs(path2)
-            print("The new directory is created!")
+        for path in paths:
+            if not os.path.exists(path):
+                # Creating a new directory if it does not exist
+                os.makedirs(path)
+                print("The new directory is created!")
 
     def up(self):
         """Cycles list of labels up"""
@@ -189,8 +212,8 @@ class Menu:
             else:
                 label.config(background="gray")
             label.config(text=f"Experiment number {num + 1}. "
-                              f"Best fitness: "
-                              f"{round(float((self.solutions_file["Fitness value of the best solution"][num])), 3)}/"
+                              # f"Best fitness: "
+                              # f"{round(float((self.solutions_file["Fitness value of the best solution"][num])), 3)}/"
                               f"{self.solutions_file["max_fitness"][num]},\n "
                               f"best distance: {round(float((self.solutions_file["Best solution distance"][num])), 3)}, "
                               f"time: {round(float((self.solutions_file["Best solution time of throw"][num])), 3)},\n "
@@ -198,6 +221,10 @@ class Menu:
                               f"number or movable links: {round(float((self.solutions_file["Num of movable links"][num])), 3)}, "
                               f"target x coordinate {(self.solutions_file["target_xcor"][num])}")
             label.grid(row=1+i+1, column=0, columnspan=2)
+
+            # label.config(text=f"Experiment number {num + 1}. ")
+            # label.grid(row=1 + i + 1, column=0, columnspan=2)
+
             i += 1
 
     def start_sim(self, picks):
@@ -205,47 +232,50 @@ class Menu:
         First simulation depicts the acceptable solution if it exists.
         Second simulation shows the best solution."""
         # Converting strings to lists and then list's contents from strings to floats
-        acceptable_solution = self.solutions_file["Acceptable solution"][self.highlighted][1:-1].split(sep=",")
-        acceptable_solution = [float(_) for _ in acceptable_solution]
-        best_solution = self.solutions_file["Best solution"][self.highlighted][1:-1].split(sep=",")
-        best_solution = [float(_) for _ in best_solution]
+        # acceptable_solution = self.solutions_file["Acceptable solution"][self.highlighted][1:-1].split(sep=",")
+        # acceptable_solution = [float(_) for _ in acceptable_solution]
+        # best_solution = self.solutions_file["Best solution"][self.highlighted][1:-1].split(sep=",")
+        # best_solution = [float(_) for _ in best_solution]
+        net_path = self.solutions_file["net_path"][self.highlighted]
 
-        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != "False":
-            minimum_solution_sim = Simulation(
-                genetic_solution=acceptable_solution,
-                ui_flag=True,
-                number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
-                target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
-                interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
-                gripper=self.solutions_file["gripper_type"][self.highlighted],
-                time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
-                picks_or_not=picks,
-                type="acceptable",
-            )
+        # Restoring checkpoint
+        with gzip.open(net_path) as f:
+            net = pickle.load(f)
+
+        # if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != "False":
+        #     minimum_solution_sim = Simulation(
+        #         net=acceptable_solution,
+        #         ui_flag=True,
+        #         number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+        #         target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+        #         gripper=self.solutions_file["gripper_type"][self.highlighted],
+        #         time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
+        #         picks_or_not=picks,
+        #         type="acceptable",
+        #     )
 
         best_solution_sim = Simulation(
-            genetic_solution=best_solution,
+            net=net,
             ui_flag=True,
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
-            interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
             gripper=self.solutions_file["gripper_type"][self.highlighted],
             time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
             picks_or_not=picks,
             type="best",
         )
 
-        generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
-        # Converting list turned into a string into a list of floats
-        fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
-        fitness_change = [float(_) for _ in fitness_change]
-
-        self.fitness_plot = plt.plot(generations, fitness_change)
-        plt.clf()
-        self.fitness_plot = plt.plot(generations, fitness_change)
-        plt.xlabel("Generations number")
-        plt.ylabel("Fitness value")
-        plt.show()
+        # generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
+        # # Converting list turned into a string into a list of floats
+        # fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
+        # fitness_change = [float(_) for _ in fitness_change]
+        #
+        # self.fitness_plot = plt.plot(generations, fitness_change)
+        # plt.clf()
+        # self.fitness_plot = plt.plot(generations, fitness_change)
+        # plt.xlabel("Generations number")
+        # plt.ylabel("Fitness value")
+        # plt.show()
 
         return None
 
@@ -267,8 +297,7 @@ class Menu:
 
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
-                          "Num of training instances: ", "Num of interpolation angles: ",
-                          "'robotic' or 'stiff' gripper: "]
+                          "Num of training instances: ", "'robotic' or 'stiff' gripper: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -285,9 +314,7 @@ class Menu:
             entry.grid(row=i, column=1)  # if this command is not done separately, entry.insert will not work
             i += 1
 
-        right_text_list = ["Num of generations: ", "Num of parents mating: ", "Parent selection type: ",
-                           "Crossover type: ", "Init range low: ", "Init range high: ", "Random mutation min val: ",
-                           "Random mutation max val: ", "Mutation probability: ", "Solutions per population: "]
+        right_text_list = ["Num of generations: ", "Activation type: ", "Num hidden: ", "Solutions per population: "]
 
         right_label_list = [(tk.Label(self.new_train_window, text=right_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=2))
@@ -308,31 +335,25 @@ class Menu:
         if isinstance(df_from_file, pd.core.frame.DataFrame):  # Checking if there is a file passed to the function
             # print("Got the file")
             # print(type(file))
-            interpolation_angles = 1
             num_of_training_instances = 1
             if mode == "csv":
                 index = self.highlighted
                 num_of_training_instances = df_from_file["Num_of_training_instances"][index]
-                interpolation_angles = df_from_file["Num_of_interpolation_angles"][index]
             elif mode == "json":
                 index = 0
                 num_of_training_instances = df_from_file["Num_of_training_instances"][index]
-                interpolation_angles = df_from_file["Num_of_interpolation_angles"][index]
             # Filling in default values for entries based on the contents of the passed file
             left_entry_insert = [df_from_file["Num of movable links"][index], df_from_file["target_xcor"][index],
                                  df_from_file["max_fitness"][index], df_from_file["distance_value"][index],
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
-                                 num_of_training_instances, interpolation_angles, df_from_file["gripper_type"][index]]
+                                 num_of_training_instances, df_from_file["gripper_type"][index]]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
 
-            right_entry_insert = [df_from_file["num_generations"][index], df_from_file["num_parents_mating"][index],
-                                  df_from_file["parent_selection_type"][index], df_from_file["crossover_type"][index],
-                                  df_from_file["init_range_low"][index], df_from_file["init_range_high"][index],
-                                  df_from_file["random_mutation_min_val"][index], df_from_file["random_mutation_max_val"][index],
-                                  df_from_file["mutation_probability"][index], df_from_file["sol_per_pop"][index]]
+            right_entry_insert = [df_from_file["num_generations"][index], df_from_file["activation_type"][index],
+                                  df_from_file["num_hidden"][index], df_from_file["sol_per_pop"][index]]
 
             for i in range(0, len(right_entry_insert)):
                 right_entry_list[i].insert(-1, right_entry_insert[i])
@@ -377,35 +398,28 @@ class Menu:
             "penalty_col": entry_lists[0][6].get(),
             "penalty_angle": entry_lists[0][7].get(),
             "Num_of_training_instances": entry_lists[0][8].get(),
-            "Num_of_interpolation_angles": entry_lists[0][9].get(),
-            "gripper_type": entry_lists[0][10].get(),
+            "gripper_type": entry_lists[0][9].get(),
         }
 
         # Getting values from left entry widgets
-        ga_params = {
+        neat_params = {
             "num_generations": entry_lists[1][0].get(),
-            "num_parents_mating": entry_lists[1][1].get(),
-            "parent_selection_type": entry_lists[1][2].get(),
-            "crossover_type": entry_lists[1][3].get(),
-            "init_range_low": entry_lists[1][4].get(),
-            "init_range_high": entry_lists[1][5].get(),
-            "random_mutation_min_val": entry_lists[1][6].get(),
-            "random_mutation_max_val": entry_lists[1][7].get(),
-            "mutation_probability": entry_lists[1][8].get(),
-            "sol_per_pop": entry_lists[1][9].get(),
+            "activation_type": entry_lists[1][1].get(),
+            "num_hidden": entry_lists[1][2].get(),
+            "sol_per_pop": entry_lists[1][3].get(),
         }
 
         # Converting values from dictionaries to appropriate types
         i = 0
         for (key, param) in fitness_params.items():
-            if i in (0, 8, 9):
+            if i in (0, 2, 8):
                 try:
                     fitness_params[key] = int(param)  # To integers
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
-            elif i == 10:  # Gripper type is a string
+            elif i == 9:  # Gripper type is a string
                 pass
             else:
                 try:
@@ -418,23 +432,23 @@ class Menu:
         # print(fitness_params)
 
         i = 0
-        for (key, param) in ga_params.items():
-            if i in (0, 1, 9):
+        for (key, param) in neat_params.items():
+            if i in (0, 2, 3):
                 try:
-                    ga_params[key] = int(param)  # To integers
+                    neat_params[key] = int(param)  # To integers
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
-                    ga_params[key] = "ERROR"
-            elif i in (2, 3):  # For strings
+                    neat_params[key] = "ERROR"
+            elif i == 1:  # For strings
                 pass
             else:
                 try:
-                    ga_params[key] = float(param)  # To floats
+                    neat_params[key] = float(param)  # To floats
                 except ValueError:
                     errors_detected = True
                     label.config(text=wrong_text)
-                    ga_params[key] = "ERROR"
+                    neat_params[key] = "ERROR"
             i += 1
         # print(ga_params)
 
@@ -443,16 +457,55 @@ class Menu:
         if errors_detected:
             return
         else:
-            self.queue.put({"fitness_params": fitness_params, "ga_params": ga_params})
+            with open("config-feedforward", "r") as file:
+                content = file.readlines()
+                print("reading config")
+            modify_values = {
+                "fitness_threshold": fitness_params["max_fitness"],
+                "pop_size": neat_params["sol_per_pop"],
+                "activation_default": neat_params["activation_type"],
+                "num_hidden": neat_params["num_hidden"],
+                "num_inputs": fitness_params["Num of movable links"] * 2 + 4,
+                "num_outputs": fitness_params["Num of movable links"]
+            }
+
+            timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
+            unique_name = uuid.uuid4().hex
+            foldername = "./neat-models/{0}-{1}".format(unique_name, timestring)
+            os.mkdir(foldername)
+            filename = "{0}/config".format(foldername)
+            fitness_params["foldername"] = foldername
+
+            with open(filename, "w") as file:
+                i = 0
+                for line in content:
+                    for value in modify_values:
+                        if line.replace(" ", "")[:len(value)] == value:
+                            pos = line.find("=")
+                            new_line = line[:pos + 1]
+                            new_line += f" {modify_values[value]}\n"
+                            # print(new_line)
+                            content[i] = new_line
+                        else:
+                            pass
+                        # print(line.replace(" ", "")[:len(value)])
+                        # if line.replace(" ", "")[:len(value)] == value:
+                        #     content[i] = self.modify_function(line, value, modify_values[value])
+                    # print(content[i])
+                    i += 1
+                print(content)
+                file.writelines(content)
+
+            self.queue.put({"fitness_params": fitness_params, "neat_params": neat_params})
             self.close_window(self.new_train_window)
         #
         #     progress_window.after(1000)
         #
         #     progress_window.mainloop()
 
-    def start_training(self, fitness_params, ga_params):
-        """Starts training of the genetic algorithm"""
-        training_instance = GeneticAlgorithm(fitness_params=fitness_params, ga_params=ga_params)
+    # def start_training(self, fitness_params, ga_params):
+    #     """Starts training of the genetic algorithm"""
+    #     training_instance = NeatAlgorithm(fitness_params=fitness_params, ga_params=ga_params)
 
     # def training_ui(self, *labels, window, info):
     #     labels[0].config(text=f"Current generation: {info[0]}")

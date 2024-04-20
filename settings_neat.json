@@ -1,0 +1,44 @@
+{
+  "Num of movable links": {
+    "0": 4
+  },
+  "activation_type": {
+    "0": "sigmoid"
+  },
+  "num_hidden": {
+    "0": 0
+  },
+  "target_xcor": {
+    "0": 2600.0
+  },
+  "num_generations": {
+    "0": 2
+  },
+  "sol_per_pop": {
+    "0": 50
+  },
+  "max_fitness": {
+    "0": 100
+  },
+  "distance_value": {
+    "0": 0.95
+  },
+  "time_value": {
+    "0": 0.5
+  },
+  "work_sum_value": {
+    "0": 0.00000001
+  },
+  "penalty_col": {
+    "0": 500.0
+  },
+  "penalty_angle": {
+    "0": 50.0
+  },
+  "Num_of_training_instances": {
+    "0": 1
+  },
+  "gripper_type": {
+    "0": "robotic"
+  }
+}
