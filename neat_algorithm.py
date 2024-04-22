@@ -25,6 +25,7 @@ class NeatAlgorithm:
         self.penalty_col = fitness_params["penalty_col"]  # Penalty for hitting the obstacle
         self.penalty_angle = fitness_params["penalty_angle"]  # Penalty for wrong angle solutions
         self.directory = fitness_params["foldername"]  # Unique filename used for config file and trained network
+        self.title = fitness_params["title"]
 
         # self.distance_value = 0.95
         # self.time_value = 0.5
@@ -35,7 +36,7 @@ class NeatAlgorithm:
         self.searched_values = ["fitness_threshold"]
         self.csv_file_lock = Lock()  # Locks access to the csv file for other processes
 
-        with open("config-feedforward", "r") as file:
+        with open(f"./{self.directory}/config", "r") as file:
             self.content = file.readlines()
 
         self.values = []
@@ -56,17 +57,57 @@ class NeatAlgorithm:
         self.num_generations = neat_params["num_generations"]
         self.training_finished = False
 
+        # For measuring purposes
         self.t0 = time.time()
+        self.t1 = False  # False means acceptable solution has not been reached
+        self.t2 = 0  # Best solution time
+        self.iteration = 0
+        self.generation = 0  # Amount of generations that has passed
+        self.best_generation = 0  # Generation of the best fitness
+        self.acceptable_generation = 0  # Generation of the acceptable fitness
+        self.minimum_desired_fitness_reached = False
+        self.acceptable_net = None  # Stores the net that achieved acceptable fitness
+        self.best_fitness = 0
+        self.acceptable_fitness = False  # False means acceptable solution has not been reached
+        self.is_set = False  # Whether the acceptable fitness has been reached or not
+        # List of fitness values
+        self.fitness_change = []
+
+        self.acceptable_solution_distance = 0
+        self.acceptable_solution_time_of_throw = 0
+        self.acceptable_solution_total_work_sum = 0
+
+        filename = f"{uuid.uuid4().hex}"
+        timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
+        self.acceptable_filename = '{0}/{1}-{2}-acceptable'.format(self.directory, filename, timestring)
 
     def neat_start(self, neat_queue):
         self.queue = neat_queue
+        # tkinter window START
+        self.progress_window = tk.Tk()
+        self.progress_window.title("NEAT training progress")
+        self.progress_window.config(padx=25, pady=25, bg="white")
+
+        self.progress_label = tk.Label(self.progress_window, text="NEAT training in progress",
+                                       font=("Consolas", 30, "bold"),
+                                       bg="red")
+        self.progress_label.grid(row=0, column=0)
+
+        self.num_of_generation_label = tk.Label(self.progress_window, text="Current generation: ",
+                                                font=("Consolas", 15, "bold"))
+        self.num_of_generation_label.grid(row=1, column=0)
+
+        self.fitness_label = tk.Label(self.progress_window, text="Highest achieved fitness so far: ",
+                                      font=("Consolas", 15, "bold"))
+        self.fitness_label.grid(row=2, column=0)
+        # tkinter window STOP
         # Determine path to configuration file. This path manipulation is
         # here so that the script will run successfully regardless of the
         # current working directory.
         local_dir = os.path.dirname(__file__)
         config_dir = f"{self.directory}/config"
         config_path = os.path.join(local_dir, config_dir)
-        print("AAAAAAAAAAAAAAAAA")
+        # print("AAAAAAAAAAAAAAAAA")
         self.run(config_path)
 
     def eval_genomes(self, genomes, config):
@@ -96,8 +137,42 @@ class NeatAlgorithm:
             if simulation.error_sum[1]:
                 genome.fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
 
+            # Monitoring best fitness
+            if genome.fitness > self.best_fitness:
+                self.best_fitness = genome.fitness  # Acquiring best fitness value
+                self.t2 = time.time()  # Acquiring best fitness time
+                self.best_generation = self.generation  # Acquiring best fitness generation
+
+            # Monitoring acceptable fitness
+            if genome.fitness > 0.9 * self.max_fitness and not self.is_set:
+                self.is_set = True
+                self.acceptable_fitness = genome.fitness  # Acquiring acceptable fitness value
+                self.t1 = time.time()  # Acquiring acceptable fitness time
+                self.acceptable_generation = self.generation  # Acquiring acceptable fitness generation
+
+                with gzip.open(self.acceptable_filename, 'w', compresslevel=5) as f:
+                    pickle.dump(net, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+                self.acceptable_solution_distance = simulation.error_sum[0]
+                self.acceptable_solution_time_of_throw = simulation.error_sum[2]
+                self.acceptable_solution_total_work_sum = simulation.error_sum[3]
+
+            self.iteration += 1
+            if self.iteration % self.sol_per_pop == 0:
+                self.generation += 1  # Keeping track of the number of generations
+            self.fitness_change.append(genome.fitness)
+
+            # Displayed in training progress window
+            self.num_of_generation_label.config(text=f"Current generation: {self.generation}")
+            # Displayed in training progress window
+            self.fitness_label.config(
+                text=f"Highest achieved fitness so far: {round(self.best_fitness, 3)}"
+            )
+            self.progress_window.update()
+
+
     def run(self, config_file):
-        print("BBBBBBBBBBBBBB")
+        # print("BBBBBBBBBBBBBB")
         # Load configuration.
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                              neat.DefaultSpeciesSet, neat.DefaultStagnation,
@@ -128,6 +203,14 @@ class NeatAlgorithm:
         with gzip.open(filename, 'w', compresslevel=5) as f:
             pickle.dump(winner_net, f, protocol=pickle.HIGHEST_PROTOCOL)
 
+            best_solution_sim = Simulation(
+                net=winner_net,
+                ui_flag=False,
+                number_of_links=self.number_of_links,
+                target_xcor=self.target_xcor,
+                gripper=self.gripper_type
+            )
+
         # Show output of the most fit genome against training data.
         # print('\nOutput:')
         # winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
@@ -144,38 +227,50 @@ class NeatAlgorithm:
         # p = neat.Checkpointer.restore_checkpoint('./neat_checkpoints/neat-checkpoint-4')
         # p.run(eval_genomes, 10)
 
-            best_solution_sim = Simulation(
-                net=winner_net,
-                ui_flag=False,
-                number_of_links=self.number_of_links,
-                target_xcor=self.target_xcor,
-                gripper=self.gripper_type
-            )
+        if self.t1 != False:  # If acceptable fitness has been reached
+            minimum_time = round(self.t1 - self.t0)
+        else:
+            minimum_time = False
+
+        # If acceptable solution is also the best solution...
+        if self.acceptable_fitness == self.best_fitness:
+            # ...don't simulate it in pymunk because best simulation would only repeat it
+            self.acceptable_fitness = False
 
         df = pd.DataFrame(
             {
+                "title": [self.title],
                 "Num of movable links": [self.number_of_links],
                 "target_xcor": [self.target_xcor],
                 "Elapsed time": [elapsed_time],
                 "Best trained network": [filename],
-                # "Best solution time": best_solution_time,
-                "Fitness value of the best solution": [0],
-                # "Generation of the best solution": self.ga_instance.best_solution_generation,
+                "Best solution time": [self.t2 - self.t0],
+                "Fitness value of the best solution": [self.best_fitness],
+                "Generation of the best solution": [self.best_generation],
                 "Best solution distance": [best_solution_sim.error_sum[0]],
                 "Best solution time of throw": [best_solution_sim.error_sum[2]],
                 "Best solution total work sum": [best_solution_sim.error_sum[3]],
-                # "sol_per_pop": self.sol_per_pop,
-                "max_fitness": [self.max_fitness],
+                "Acceptable solution time": [minimum_time],
+                "Fitness value of the acceptable solution": [self.acceptable_fitness],
+                "Generation of the acceptable solution": [self.generation],
+                "Acceptable solution distance": [self.acceptable_solution_distance],
+                "Acceptable solution time of throw": [self.acceptable_solution_time_of_throw],
+                "Acceptable solution total work sum": [self.acceptable_solution_total_work_sum],
+                "num_generations": [self.num_generations],  # Total number of generations
+                "sol_per_pop": [self.sol_per_pop],  # Initial population
+                "max_fitness": [self.max_fitness],  # Highest achievable fitness
                 "distance_value": [self.distance_value],  # Weight of distance in fitness function
                 "time_value": [self.time_value],  # Weight of time of throw in fitness function
                 "work_sum_value": [self.work_sum_value],  # Weight of total work sum in fitness function
                 "penalty_col": [self.penalty_col],  # Penalty for hitting the obstacle
                 "penalty_angle": [self.penalty_angle],  # Penalty for wrong angle solutions
-                # "fitness_change": [self.fitness_change],
-                "Num_of_training_instances": [self.neat_amount],
-                # "Num_of_interpolation_angles": self.interpolation,
+                "fitness_change": [self.fitness_change],  # List of all recorded genome fitness values
+                "Num_of_training_instances": [self.neat_amount],  # How many NEATs were trained at once
                 "gripper_type": [self.gripper_type],
-                "net_path": [filename],
+                "net_path": [filename],  # Path to the net with the best solution
+                "acceptable_net_path": [self.acceptable_filename],  # Path to the net with acceptable solution
+                "activation_type": [self.activation_type],
+                "num_hidden": [self.num_hidden],
             }
         )
 
@@ -196,14 +291,14 @@ class NeatAlgorithm:
                 "num_hidden": self.num_hidden,
                 "target_xcor": self.target_xcor,
                 "num_generations": self.num_generations,
-                "sol_per_pop": self.sol_per_pop,
-                "max_fitness": self.max_fitness,
+                "sol_per_pop": self.sol_per_pop,  # Initial population
+                "max_fitness": self.max_fitness,  # Highest achievable fitness
                 "distance_value": self.distance_value,  # Weight of distance in fitness function
                 "time_value": self.time_value,  # Weight of time of throw in fitness function
                 "work_sum_value": self.work_sum_value,  # Weight of total work sum in fitness function
                 "penalty_col": self.penalty_col,  # Penalty for hitting the obstacle
                 "penalty_angle": self.penalty_angle,  # Penalty for wrong angle solutions
-                "Num_of_training_instances": self.neat_amount,
+                "Num_of_training_instances": self.neat_amount,  # How many NEATs were trained at once
                 "gripper_type": self.gripper_type,
             }, index=[0]  # This fixes the "ValueError: If using all scalar values, you must pass an index" error
         )

@@ -350,7 +350,7 @@ class Simulation:
                           f"Elapsed time: {elapsed_time}.\n"
                           f"Total work: {work_sum}.")
                 else:
-                    return
+                    return self.error_sum
                 # return self.error_sum
 
             # Timeout --------------------------------------------------------------------------------------------------
@@ -362,7 +362,7 @@ class Simulation:
                           f"Elapsed time: {elapsed_time}.\n"
                           f"Total work: {work_sum}.")
                 else:
-                    return
+                    return self.error_sum
                 # return self.error_sum
 
         # if __name__ == "__simulation__":

@@ -21,18 +21,21 @@ if __name__ == '__main__':
     while True:
         data = param_queue.get()
 
-        ga_data_list = [queue.get() for queue in neat_queue_list]
-        for neat_data in ga_data_list:
-            if neat_data == "FINISHED":  # Refreshing the list every time ga finishes training and sends not-empty queue
+        neat_data_list = [queue.get() for queue in neat_queue_list]
+        for neat_data in neat_data_list:
+            # Refreshing the list every time NEAT finishes training and sends not-empty queue
+            if neat_data == "FINISHED":
                 main_menu.list_refresh()
 
         if data == "SHUTDOWN":  # Checking for shutdown command
+            for process in process_list:
+                process.terminate()
             break
 
         val = data["fitness_params"]["Num_of_training_instances"]  # Amount of ga training instances
         for _ in range(0, val):
             if _ == 0:
-                neat_queue_list = []  # Resetting the list with ga queues
+                neat_queue_list = []  # Resetting the list with NEAT queues
                 neat_flag = True
 
             neat_queue = Queue()

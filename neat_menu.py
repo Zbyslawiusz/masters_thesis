@@ -214,8 +214,8 @@ class Menu:
             else:
                 label.config(background="gray")
             label.config(text=f"Experiment number {num + 1}. "
-                              # f"Best fitness: "
-                              # f"{round(float((self.solutions_file["Fitness value of the best solution"][num])), 3)}/"
+                              f"Best fitness: "
+                              f"{round(float((self.solutions_file["Fitness value of the best solution"][num])), 3)}/"
                               f"{self.solutions_file["max_fitness"][num]},\n "
                               f"best distance: {round(float((self.solutions_file["Best solution distance"][num])), 3)}, "
                               f"time: {round(float((self.solutions_file["Best solution time of throw"][num])), 3)},\n "
@@ -240,21 +240,25 @@ class Menu:
         # best_solution = [float(_) for _ in best_solution]
         net_path = self.solutions_file["net_path"][self.highlighted]
 
-        # Restoring checkpoint
+        # Restoring checkpoint of the acceptable solution if it has been reached
+        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != "False":
+            with gzip.open(net_path) as f:
+                net = pickle.load(f)
+
+            minimum_solution_sim = Simulation(
+                net=net,
+                ui_flag=True,
+                number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+                target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+                gripper=self.solutions_file["gripper_type"][self.highlighted],
+                time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
+                picks_or_not=picks,
+                type="acceptable",
+            )
+
+        # Restoring checkpoint of the best solution
         with gzip.open(net_path) as f:
             net = pickle.load(f)
-
-        # if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != "False":
-        #     minimum_solution_sim = Simulation(
-        #         net=acceptable_solution,
-        #         ui_flag=True,
-        #         number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
-        #         target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
-        #         gripper=self.solutions_file["gripper_type"][self.highlighted],
-        #         time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
-        #         picks_or_not=picks,
-        #         type="acceptable",
-        #     )
 
         best_solution_sim = Simulation(
             net=net,
@@ -267,17 +271,17 @@ class Menu:
             type="best",
         )
 
-        # generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
-        # # Converting list turned into a string into a list of floats
-        # fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
-        # fitness_change = [float(_) for _ in fitness_change]
-        #
-        # self.fitness_plot = plt.plot(generations, fitness_change)
-        # plt.clf()
-        # self.fitness_plot = plt.plot(generations, fitness_change)
-        # plt.xlabel("Generations number")
-        # plt.ylabel("Fitness value")
-        # plt.show()
+        generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
+        # Converting list turned into a string into a list of floats
+        fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
+        fitness_change = [float(_) for _ in fitness_change]
+
+        self.fitness_plot = plt.plot([_ for _ in range(0, len(fitness_change))], fitness_change)
+        plt.clf()
+        self.fitness_plot = plt.plot([_ for _ in range(0, len(fitness_change))], fitness_change)
+        plt.xlabel("Generations number")
+        plt.ylabel("Fitness value")
+        plt.show()
 
         return None
 
@@ -299,7 +303,8 @@ class Menu:
 
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
-                          "Num of training instances: ", "'robotic' or 'stiff' gripper: "]
+                          "Num of training instances: ", "'robotic' or 'stiff' gripper: ",
+                          "Title: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -349,7 +354,8 @@ class Menu:
                                  df_from_file["max_fitness"][index], df_from_file["distance_value"][index],
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
-                                 num_of_training_instances, df_from_file["gripper_type"][index]]
+                                 num_of_training_instances, df_from_file["gripper_type"][index],
+                                 "Title"]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
@@ -401,6 +407,7 @@ class Menu:
             "penalty_angle": entry_lists[0][7].get(),
             "Num_of_training_instances": entry_lists[0][8].get(),
             "gripper_type": entry_lists[0][9].get(),
+            "title": entry_lists[0][10].get(),
         }
 
         # Getting values from left entry widgets
@@ -421,7 +428,7 @@ class Menu:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
-            elif i == 9:  # Gripper type is a string
+            elif i in (9, 10):  # Gripper type is a string
                 pass
             else:
                 try:
