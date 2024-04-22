@@ -47,7 +47,7 @@ class NeatAlgorithm:
         self.max_fitness = int(self.values[0])
         self.target_xcor = fitness_params["target_xcor"]
         self.number_of_links = fitness_params["Num of movable links"]
-        self.gripper_type = "robotic"
+        self.gripper_type = fitness_params["gripper_type"]
         self.sol_per_pop = neat_params["sol_per_pop"]  # Starting population
         self.neat_amount = fitness_params["Num_of_training_instances"]
         self.activation_type = neat_params["activation_type"]

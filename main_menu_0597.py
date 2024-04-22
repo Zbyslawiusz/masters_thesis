@@ -100,6 +100,8 @@ class Menu:
     def shutdown(self):
         try:
             plt.close(self.fitness_plot[0].figure)
+        except AttributeError:
+            pass
         finally:
             self.queue.put("SHUTDOWN")
             self.close_window(self.window)

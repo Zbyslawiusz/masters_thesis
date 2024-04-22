@@ -495,7 +495,9 @@ class Menu:
                         #     content[i] = self.modify_function(line, value, modify_values[value])
                     # print(content[i])
                     i += 1
+                print(fitness_params)
                 print(content)
+                # return  # For debugging
                 file.writelines(content)
 
             self.queue.put({"fitness_params": fitness_params, "neat_params": neat_params})
