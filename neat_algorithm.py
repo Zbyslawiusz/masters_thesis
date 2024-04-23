@@ -157,10 +157,9 @@ class NeatAlgorithm:
                 self.acceptable_solution_time_of_throw = simulation.error_sum[2]
                 self.acceptable_solution_total_work_sum = simulation.error_sum[3]
 
-            self.iteration += 1
             if self.iteration % self.sol_per_pop == 0:
                 self.generation += 1  # Keeping track of the number of generations
-            self.fitness_change.append(genome.fitness)
+                self.fitness_change.append(self.best_fitness)
 
             # Displayed in training progress window
             self.num_of_generation_label.config(text=f"Current generation: {self.generation}")
@@ -169,6 +168,8 @@ class NeatAlgorithm:
                 text=f"Highest achieved fitness so far: {round(self.best_fitness, 3)}"
             )
             self.progress_window.update()
+
+            self.iteration += 1
 
 
     def run(self, config_file):

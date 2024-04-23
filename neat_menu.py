@@ -196,6 +196,7 @@ class Menu:
     def list_refresh(self):
         """Refreshes the list of labels displayed in the main window"""
         # self.check_files()
+        self.max_index = self.num_of_solutions - 1  # Determining maximum index for a row in a column
         i = 0
         # print(self.highlighted)
         if self.num_of_solutions <= self.view_cap:  # Limiting the amount of labels created
@@ -213,15 +214,15 @@ class Menu:
                 label.config(background="green")
             else:
                 label.config(background="gray")
-            label.config(text=f"Experiment number {num + 1}. "
+            label.config(text=f"Experiment number {num + 1}. Title: {self.solutions_file['title'][num]}.\n"
                               f"Best fitness: "
-                              f"{round(float((self.solutions_file["Fitness value of the best solution"][num])), 3)}/"
-                              f"{self.solutions_file["max_fitness"][num]},\n "
-                              f"best distance: {round(float((self.solutions_file["Best solution distance"][num])), 3)}, "
-                              f"time: {round(float((self.solutions_file["Best solution time of throw"][num])), 3)},\n "
-                              f"best work sum: {round(float((self.solutions_file["Best solution total work sum"][num])), 3)}, "
-                              f"number or movable links: {round(float((self.solutions_file["Num of movable links"][num])), 3)}, "
-                              f"target x coordinate {(self.solutions_file["target_xcor"][num])}")
+                              f"{round(float((self.solutions_file['Fitness value of the best solution'][num])), 3)}/"
+                              f"{self.solutions_file['max_fitness'][num]},\n "
+                              f"best distance: {round(float((self.solutions_file['Best solution distance'][num])), 3)}, "
+                              f"time: {round(float((self.solutions_file['Best solution time of throw'][num])), 3)},\n "
+                              f"best work sum: {round(float((self.solutions_file['Best solution total work sum'][num])), 3)}, "
+                              f"number or movable links: {round(float((self.solutions_file['Num of movable links'][num])), 3)}, "
+                              f"target x coordinate {(self.solutions_file['target_xcor'][num])}")
             label.grid(row=1+i+1, column=0, columnspan=2)
 
             # label.config(text=f"Experiment number {num + 1}. ")
@@ -276,9 +277,9 @@ class Menu:
         fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
         fitness_change = [float(_) for _ in fitness_change]
 
-        self.fitness_plot = plt.plot([_ for _ in range(0, len(fitness_change))], fitness_change)
+        self.fitness_plot = plt.plot(generations, fitness_change)
         plt.clf()
-        self.fitness_plot = plt.plot([_ for _ in range(0, len(fitness_change))], fitness_change)
+        self.fitness_plot = plt.plot(generations, fitness_change)
         plt.xlabel("Generations number")
         plt.ylabel("Fitness value")
         plt.show()
@@ -469,13 +470,19 @@ class Menu:
             with open("config-feedforward", "r") as file:
                 content = file.readlines()
                 print("reading config")
+
+            if fitness_params["gripper_type"] == "robotic":
+                num_outputs = fitness_params["Num of movable links"] + 1
+            else:
+                num_outputs = fitness_params["Num of movable links"]
+
             modify_values = {
                 "fitness_threshold": fitness_params["max_fitness"],
                 "pop_size": neat_params["sol_per_pop"],
                 "activation_default": neat_params["activation_type"],
                 "num_hidden": neat_params["num_hidden"],
                 "num_inputs": fitness_params["Num of movable links"] * 2 + 4,
-                "num_outputs": fitness_params["Num of movable links"]
+                "num_outputs": num_outputs
             }
 
             timestring = time.strftime("%Y-%m-%d---%H-%M-%S")

@@ -132,7 +132,7 @@ class Simulation:
         space.add(ground, ground_shape)
 
         # Creating an obstacle
-        obstacle_height = 20
+        obstacle_height = 400
         obstacle_width = 10
         obstacle = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
         obstacle.position = (self.first_link_x_cor + 800, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
@@ -257,26 +257,26 @@ class Simulation:
             i = 0
             for link in manipulator.links[1:]:
                 traversed_angle = abs(link["angle"] - link["previous_angle"])
-                # Passing the current timestamp to interpolated function in order to calculate current desired angle
                 # if not ball_released:
-                desired_angle = solution[i]
-                link["desired angle"] = desired_angle
+                # desired_angle = solution[i]
+                # link["desired angle"] = desired_angle
                 # Correcting the angles for pymunk
-                if desired_angle > 2 * pi:
-                    desired_angle = 0 + desired_angle % (2 * pi)
-                elif desired_angle < -2 * pi:
-                    desired_angle = 0 - desired_angle % (2 * pi)
-                else:
-                    pass
+                # if desired_angle > 2 * pi:
+                #     desired_angle = 0 + desired_angle % (2 * pi)
+                # elif desired_angle < -2 * pi:
+                #     desired_angle = 0 - desired_angle % (2 * pi)
+                # else:
+                #     pass
                 # else:
                 #     desired_angle = link["desired angle"]
                 #     # print(f"Desired angle: {desired_angle}, elapsed time: {elapsed_time}")
-                if i == 0:
-                    angle_error = desired_angle - link["angle"]
-                else:
-                    angle_error = desired_angle - manipulator.links[i - 1]["angle"]
+                # if i == 0:
+                #     angle_error = desired_angle - link["angle"]
+                # else:
+                #     angle_error = desired_angle - manipulator.links[i - 1]["angle"]
                 # print(f"Error: {error}")
-                force = manipulator.pid_force_calculator(error=angle_error, dt=dt)
+                # force = manipulator.pid_force_calculator(error=angle_error, dt=dt)
+                force = solution[i]
                 if force > self.max_force:
                     force = self.max_force
                 elif force < -self.max_force:
