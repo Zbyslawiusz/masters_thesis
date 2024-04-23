@@ -23,8 +23,8 @@ GROUND_THICKNESS = 50
 
 
 class Simulation:
-    def __init__(self, net, ui_flag, number_of_links, target_xcor, interpolation=4,
-                 time_of_throw=1_000_000, picks_or_not="False", gripper="stiff", type="best"):
+    def __init__(self, net, ui_flag, number_of_links, target_xcor, time_of_throw=1_000_000,
+                 picks_or_not="False", gripper="stiff", sim_type="best"):
 
         self.filenames = []  # List storing filenames of screenshots if they're taken
 
@@ -41,9 +41,9 @@ class Simulation:
             self.interval = time_of_throw / 16
 
             # Folder containing screenshots is cleaned every time new screenshots are to be taken
-            if type == "best":
+            if sim_type == "best":
                 folder = "./Pymunk_pics/Best_sim"
-            elif type == "acceptable":
+            elif sim_type == "acceptable":
                 folder = "./Pymunk_pics/Acceptable_sim"
             for filename in os.listdir(folder):
                 file_path = os.path.join(folder, filename)
@@ -71,10 +71,10 @@ class Simulation:
         self.simulation(self.net, self.draw_ui)
 
         # Moving the screenshot files to their designated folder
-        if self.draw_ui and type == "acceptable":
+        if self.draw_ui and sim_type == "acceptable":
             for filename in self.filenames:
                 shutil.move(f"./{filename}", "./Pymunk_pics/Acceptable_sim")
-        elif self.draw_ui and type == "best":
+        elif self.draw_ui and sim_type == "best":
             for filename in self.filenames:
                 shutil.move(f"./{filename}", "./Pymunk_pics/Best_sim")
         return
@@ -218,10 +218,10 @@ class Simulation:
             # Detecting collisions with ground and resting point and others --------------------------------------------
             if not hit_ground:
                 handler_ball.begin = manipulator.ball_hit_ground  # Collision between ball and ground
-                handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
+                # handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
             # if not is_reversed:
                 # handler_link.begin = manipulator.link_reversed  # Collision between links and stand
-            handler_manipulator_trail.begin = self.link_with_trail  # Collision between links and trail
+            # handler_manipulator_trail.begin = self.link_with_trail  # Collision between links and trail
             if not hit_obstacle:  # !!!!!!!!!!!!!!!!Tu moze byc blad - sprawdzanie kolizji z przeszkoda tylko raz
                 handler_obstacle.begin = manipulator.obstacle_hit  # Collision between ball and obstacle
                 hit_obstacle = True
@@ -323,13 +323,16 @@ class Simulation:
                         pos = manipulator.ball.position
                 elif step >= 10 and not hit_ground and not finished:
                     # Creating the trail balls
-                    trail = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+                    trail = pymunk.Body(body_type=pymunk.Body.STATIC)
                     trail.position = pos
                     trail_shape = pymunk.Circle(trail, radius=3)
                     trail_shape.collision_type = 37
 
                     space.add(trail, trail_shape)
                     step = 0
+
+                handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
+                handler_manipulator_trail.begin = self.link_with_trail  # Collision between links and trail
 
             # Update physics -------------------------------------------------------------------------------------------
             if not finished:
@@ -346,10 +349,15 @@ class Simulation:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
                 if ui_flag:
-                    print(f"\nDistance: {registered_distance}.\n"
+                    print(f"SIMULATION ERROR IN MAIN --- HIT GROUND"
+                          f"\nDistance: {registered_distance}.\n"
                           f"Elapsed time: {elapsed_time}.\n"
                           f"Total work: {work_sum}.")
                 else:
+                    # print(f"SIMULATION ERROR IN MAIN --- HIT GROUND"
+                    #       f"\nDistance: {registered_distance}.\n"
+                    #       f"Elapsed time: {elapsed_time}.\n"
+                    #       f"Total work: {work_sum}.")
                     return self.error_sum
                 # return self.error_sum
 
@@ -358,10 +366,15 @@ class Simulation:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
                 if ui_flag:
-                    print(f"\nDistance: {registered_distance}.\n"
+                    print(f"SIMULATION ERROR IN MAIN --- TIMEOUT"
+                          f"\nDistance: {registered_distance}.\n"
                           f"Elapsed time: {elapsed_time}.\n"
                           f"Total work: {work_sum}.")
                 else:
+                    # print(f"SIMULATION ERROR IN MAIN --- TIMEOUT"
+                    #       f"\nDistance: {registered_distance}.\n"
+                    #       f"Elapsed time: {elapsed_time}.\n"
+                    #       f"Total work: {work_sum}.")
                     return self.error_sum
                 # return self.error_sum
 

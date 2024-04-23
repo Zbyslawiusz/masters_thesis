@@ -27,6 +27,15 @@ class NeatAlgorithm:
         self.directory = fitness_params["foldername"]  # Unique filename used for config file and trained network
         self.title = fitness_params["title"]
 
+        self.node_add_prob = neat_params["node_add_prob"]
+        self.node_delete_prob = neat_params["node_delete_prob"]
+        self.response_max_value = neat_params["response_max_value"]
+        self.response_min_value = neat_params["response_min_value"]
+        self.weight_mutate_power = neat_params["weight_mutate_power"]
+        self.weight_mutate_rate = neat_params["weight_mutate_rate"]
+        self.conn_add_prob = neat_params["conn_add_prob"]
+        self.conn_delete_prob = neat_params["conn_delete_prob"]
+
         # self.distance_value = 0.95
         # self.time_value = 0.5
         # self.work_sum_value = 1e-7
@@ -126,7 +135,6 @@ class NeatAlgorithm:
                 gripper=self.gripper_type
             )
             # fitness = 1.0 / (error_sum + 0.0001)
-
             # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
             # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
@@ -137,11 +145,24 @@ class NeatAlgorithm:
             if simulation.error_sum[1]:
                 genome.fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
 
+            # print(f"\nSIMULATION ERRORS IN NEAT\n"
+            #       f"Fitness: {genome.fitness}\n"
+            #       f"Distance: {simulation.error_sum[0]}\n"
+            #       f"Time of throw: {simulation.error_sum[2]}\n"
+            #       f"Total work sum: {simulation.error_sum[3]}\n")
+
             # Monitoring best fitness
             if genome.fitness > self.best_fitness:
                 self.best_fitness = genome.fitness  # Acquiring best fitness value
                 self.t2 = time.time()  # Acquiring best fitness time
                 self.best_generation = self.generation  # Acquiring best fitness generation
+                # print(f"\n-----------------------------------------------------------------------------------------\n"
+                #       f"CURRENT BEST FITNESS\n"
+                #       f"Current best fitness: {self.best_fitness}\n"
+                #       f"Distance: {simulation.error_sum[0]}\n"
+                #       f"Time of throw: {simulation.error_sum[2]}\n"
+                #       f"Total work sum: {simulation.error_sum[3]}\n"
+                #       f"-----------------------------------------------------------------------------------------\n")
 
             # Monitoring acceptable fitness
             if genome.fitness > 0.9 * self.max_fitness and not self.is_set:
@@ -149,6 +170,13 @@ class NeatAlgorithm:
                 self.acceptable_fitness = genome.fitness  # Acquiring acceptable fitness value
                 self.t1 = time.time()  # Acquiring acceptable fitness time
                 self.acceptable_generation = self.generation  # Acquiring acceptable fitness generation
+                # print(f"\n-----------------------------------------------------------------------------------------\n"
+                #       f"ACCEPTABLE SOLUTION\n"
+                #       f"Fitness: {genome.fitness}\n"
+                #       f"Distance: {simulation.error_sum[0]}\n"
+                #       f"Time of throw: {simulation.error_sum[2]}\n"
+                #       f"Total work sum: {simulation.error_sum[3]}\n"
+                #       f"-----------------------------------------------------------------------------------------\n")
 
                 with gzip.open(self.acceptable_filename, 'w', compresslevel=5) as f:
                     pickle.dump(net, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -170,7 +198,6 @@ class NeatAlgorithm:
             self.progress_window.update()
 
             self.iteration += 1
-
 
     def run(self, config_file):
         # print("BBBBBBBBBBBBBB")
@@ -211,6 +238,17 @@ class NeatAlgorithm:
                 target_xcor=self.target_xcor,
                 gripper=self.gripper_type
             )
+        fitness = self.max_fitness - (self.distance_value * best_solution_sim.error_sum[0] +
+                                      self.time_value * best_solution_sim.error_sum[2] +
+                                      self.work_sum_value * best_solution_sim.error_sum[3])
+
+        # print(f"\n-----------------------------------------------------------------------------------------\n"
+        #       f"BEST SOLUTION SIM\n"
+        #       f"Fitness: {fitness}\n"
+        #       f"Distance: {best_solution_sim.error_sum[0]}\n"
+        #       f"Time of throw: {best_solution_sim.error_sum[2]}\n"
+        #       f"Total work sum: {best_solution_sim.error_sum[3]}\n"
+        #       f"-----------------------------------------------------------------------------------------\n")
 
         # Show output of the most fit genome against training data.
         # print('\nOutput:')
@@ -272,6 +310,14 @@ class NeatAlgorithm:
                 "acceptable_net_path": [self.acceptable_filename],  # Path to the net with acceptable solution
                 "activation_type": [self.activation_type],
                 "num_hidden": [self.num_hidden],
+                "node_add_prob": [self.node_add_prob],
+                "node_delete_prob": [self.node_delete_prob],
+                "response_max_value": [self.response_max_value],
+                "response_min_value": [self.response_min_value],
+                "weight_mutate_power": [self.weight_mutate_power],
+                "weight_mutate_rate": [self.weight_mutate_rate],
+                "conn_add_prob": [self.conn_add_prob],
+                "conn_delete_prob": [self.conn_delete_prob],
             }
         )
 
@@ -301,6 +347,14 @@ class NeatAlgorithm:
                 "penalty_angle": self.penalty_angle,  # Penalty for wrong angle solutions
                 "Num_of_training_instances": self.neat_amount,  # How many NEATs were trained at once
                 "gripper_type": self.gripper_type,
+                "node_add_prob": self.node_add_prob,
+                "node_delete_prob": self.node_delete_prob,
+                "response_max_value": self.response_max_value,
+                "response_min_value": self.response_min_value,
+                "weight_mutate_power": self.weight_mutate_power,
+                "weight_mutate_rate": self.weight_mutate_rate,
+                "conn_add_prob": self.conn_add_prob,
+                "conn_delete_prob": self.conn_delete_prob,
             }, index=[0]  # This fixes the "ValueError: If using all scalar values, you must pass an index" error
         )
         current_settings.to_json("settings_neat.json")

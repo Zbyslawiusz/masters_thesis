@@ -15,7 +15,7 @@ from neat_algorithm import NeatAlgorithm
 class Menu:
     def __init__(self):
 
-        self.take_ga_params = 0  # Whether to use last used ga params (0) or the ones from the csv file (1) or user input (2)
+        self.take_neat_params = 0  # Whether to use last used neat params (0) or the ones from the csv file (1) or user input (2)
         self.take_fitness_params = 0  # Whether to use last used fitness params (0) or the ones from the csv file (1) or user input (2)
         self.csv_exists = False
         self.json_exists = False
@@ -185,6 +185,7 @@ class Menu:
 
     def down(self):
         """Cycles list of labels down"""
+        self.list_refresh()
         if self.highlighted + 1 <= self.max_index:
             self.highlighted += 1
             if self.highlighted > self.currently_viewed[-1]:
@@ -218,7 +219,7 @@ class Menu:
                               f"Best fitness: "
                               f"{round(float((self.solutions_file['Fitness value of the best solution'][num])), 3)}/"
                               f"{self.solutions_file['max_fitness'][num]},\n "
-                              f"best distance: {round(float((self.solutions_file['Best solution distance'][num])), 3)}, "
+                              f"smallest distance error: {round(float((self.solutions_file['Best solution distance'][num])), 3)}, "
                               f"time: {round(float((self.solutions_file['Best solution time of throw'][num])), 3)},\n "
                               f"best work sum: {round(float((self.solutions_file['Best solution total work sum'][num])), 3)}, "
                               f"number or movable links: {round(float((self.solutions_file['Num of movable links'][num])), 3)}, "
@@ -242,7 +243,9 @@ class Menu:
         net_path = self.solutions_file["net_path"][self.highlighted]
 
         # Restoring checkpoint of the acceptable solution if it has been reached
-        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != "False":
+        print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
+        print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
+        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False:
             with gzip.open(net_path) as f:
                 net = pickle.load(f)
 
@@ -254,7 +257,7 @@ class Menu:
                 gripper=self.solutions_file["gripper_type"][self.highlighted],
                 time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
                 picks_or_not=picks,
-                type="acceptable",
+                sim_type="acceptable",
             )
 
         # Restoring checkpoint of the best solution
@@ -269,7 +272,18 @@ class Menu:
             gripper=self.solutions_file["gripper_type"][self.highlighted],
             time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
             picks_or_not=picks,
-            type="best",
+            sim_type="best",
+        )
+
+        best_solution_sim = Simulation(
+            net=net,
+            ui_flag=False,
+            number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+            target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+            gripper=self.solutions_file["gripper_type"][self.highlighted],
+            time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
+            picks_or_not=picks,
+            sim_type="best",
         )
 
         generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
@@ -277,9 +291,9 @@ class Menu:
         fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
         fitness_change = [float(_) for _ in fitness_change]
 
-        self.fitness_plot = plt.plot(generations, fitness_change)
+        self.fitness_plot = plt.plot([_ for _ in range(len(fitness_change))], fitness_change)
         plt.clf()
-        self.fitness_plot = plt.plot(generations, fitness_change)
+        self.fitness_plot = plt.plot([_ for _ in range(len(fitness_change))], fitness_change)
         plt.xlabel("Generations number")
         plt.ylabel("Fitness value")
         plt.show()
@@ -287,7 +301,7 @@ class Menu:
         return None
 
     def new_train_window_func(self, df_from_file, mode):
-        """Popup window with user input for all fitness and ga parameters used during training.
+        """Popup window with user input for all fitness and neat parameters used during training.
         Allows for manually typing values or correcting those used in previous experiments."""
         self.new_train_window = tk.Tk()
         self.new_train_window.title("Specify parameters")
@@ -299,7 +313,7 @@ class Menu:
 
         fitness_label = (tk.Label(self.new_train_window, text="Fitness function params", font=("Consolas", 20, "bold"))
                          .grid(row=1, column=0, columnspan=2))
-        ga_label = (tk.Label(self.new_train_window, text="Genetic algorithm params", font=("Consolas", 20, "bold"))
+        neat_label = (tk.Label(self.new_train_window, text="NEAT algorithm params", font=("Consolas", 20, "bold"))
                     .grid(row=1, column=3, columnspan=2))
 
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
@@ -322,7 +336,10 @@ class Menu:
             entry.grid(row=i, column=1)  # if this command is not done separately, entry.insert will not work
             i += 1
 
-        right_text_list = ["Num of generations: ", "Activation type: ", "Num hidden: ", "Solutions per population: "]
+        right_text_list = ["Num of generations: ", "Activation type: ", "Num hidden: ", "Solutions per population: ",
+                           "Node add prob: ", "Node delete prob: ", "Response max value: ", "Response min value: ",
+                           "Weight mutate power: ", "Weight mutate rate: ", "Connection add prob: ",
+                           "Connection delete prob: "]
 
         right_label_list = [(tk.Label(self.new_train_window, text=right_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=2))
@@ -362,7 +379,11 @@ class Menu:
                 left_entry_list[i].insert(-1, left_entry_insert[i])
 
             right_entry_insert = [df_from_file["num_generations"][index], df_from_file["activation_type"][index],
-                                  df_from_file["num_hidden"][index], df_from_file["sol_per_pop"][index]]
+                                  df_from_file["num_hidden"][index], df_from_file["sol_per_pop"][index],
+                                  df_from_file["node_add_prob"][index], df_from_file["node_delete_prob"][index],
+                                  df_from_file["response_max_value"][index], df_from_file["response_min_value"][index],
+                                  df_from_file["weight_mutate_power"][index], df_from_file["weight_mutate_rate"][index],
+                                  df_from_file["conn_add_prob"][index], df_from_file["conn_delete_prob"][index]]
 
             for i in range(0, len(right_entry_insert)):
                 right_entry_list[i].insert(-1, right_entry_insert[i])
@@ -391,7 +412,7 @@ class Menu:
     def confirm_training(self, *entry_lists, label):
         """This method converts values in entries from new_train_window to appropriate types.
         It is here where info_label from new_train_window is changed if the type of value is wrong.
-        Converted values are then sent to pygad to begin training.
+        Converted values are then sent to neat-python to begin training.
         A popup window indicates the progress of training."""
         wrong_text = "Wrong type of value encountered. Please correct your input."
         errors_detected = False
@@ -417,6 +438,14 @@ class Menu:
             "activation_type": entry_lists[1][1].get(),
             "num_hidden": entry_lists[1][2].get(),
             "sol_per_pop": entry_lists[1][3].get(),
+            "node_add_prob": entry_lists[1][4].get(),
+            "node_delete_prob": entry_lists[1][5].get(),
+            "response_max_value": entry_lists[1][6].get(),
+            "response_min_value": entry_lists[1][7].get(),
+            "weight_mutate_power": entry_lists[1][8].get(),
+            "weight_mutate_rate": entry_lists[1][9].get(),
+            "conn_add_prob": entry_lists[1][10].get(),
+            "conn_delete_prob": entry_lists[1][11].get(),
         }
 
         # Converting values from dictionaries to appropriate types
@@ -482,7 +511,15 @@ class Menu:
                 "activation_default": neat_params["activation_type"],
                 "num_hidden": neat_params["num_hidden"],
                 "num_inputs": fitness_params["Num of movable links"] * 2 + 4,
-                "num_outputs": num_outputs
+                "num_outputs": num_outputs,
+                "node_add_prob": neat_params["node_add_prob"],
+                "node_delete_prob": neat_params["node_delete_prob"],
+                "response_max_value": neat_params["response_max_value"],
+                "response_min_value": neat_params["response_min_value"],
+                "weight_mutate_power": neat_params["weight_mutate_power"],
+                "weight_mutate_rate": neat_params["weight_mutate_rate"],
+                "conn_add_prob": neat_params["conn_add_prob"],
+                "conn_delete_prob": neat_params["conn_delete_prob"],
             }
 
             timestring = time.strftime("%Y-%m-%d---%H-%M-%S")

@@ -70,12 +70,22 @@ class Simulation:
             angles = []  # Contains desired angles for each link
             timestamps = []  # Stores timestamps corresponding to desired angles for each link
             values = self.control_values[i*self.interpolation*2:i*self.interpolation*2+self.interpolation*2]
+            j = 0
             for _ in range(0, len(values)):
                 if _ % 2 != 0:  # Check every even number in genetic solution to get angle, odd numbers store timestamps
-                    timestamps.append(values[_])
+                    if j == 0:
+                        timestamps.append(0)  # Timestamps start at time = 0
+                        j += 1
+                    else:
+                        # They have to be monotonically increasing
+                        timestamps.append(timestamps[j - 1] + abs(values[_]))
+                        j += 1
+
                 else:  # Even numbers store angles
                     angles.append(values[_])
-            for _ in range(0, len(timestamps)):  # Timestamps have to be monotonically increasing, if they're not scipy will crash
+
+            for _ in range(0, len(timestamps)):
+                # Timestamps have to be monotonically increasing, if they're not scipy will crash
                 try:
                     if timestamps[_+1] <= timestamps[_]:
                         timestamps[_+1] = timestamps[_] + 0.001
@@ -86,8 +96,8 @@ class Simulation:
                 elif angles[_] > pi/2:
                     angles[_] = pi/2
             # Simulation starts in time=0, therefore interpolation must include value range starting at 0 or scipy will crash
-            if timestamps[0] > 0 or timestamps[0] < 0:
-                timestamps[0] = 0
+            # if timestamps[0] > 0 or timestamps[0] < 0:
+            #     timestamps[0] = 0
                 # timestamps.insert(0, 0)
                 # angles.insert(0, 0)
 
@@ -248,10 +258,10 @@ class Simulation:
             # Detecting collisions with ground and resting point and others --------------------------------------------
             if not hit_ground:
                 handler_ball.begin = manipulator.ball_hit_ground  # Collision between ball and ground
-                handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
+                # handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
             # if not is_reversed:
                 # handler_link.begin = manipulator.link_reversed  # Collision between links and stand
-            handler_manipulator_trail.begin = self.link_with_trail  # Collision between links and trail
+            # handler_manipulator_trail.begin = self.link_with_trail  # Collision between links and trail
             if not hit_obstacle:  # !!!!!!!!!!!!!!!!Tu moze byc blad - sprawdzanie kolizji z przeszkoda tylko raz
                 handler_obstacle.begin = manipulator.obstacle_hit  # Collision between ball and obstacle
                 hit_obstacle = True
@@ -338,13 +348,16 @@ class Simulation:
                         pos = manipulator.ball.position
                 elif step >= 10 and not hit_ground and not finished:
                     # Creating the trail balls
-                    trail = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+                    trail = pymunk.Body(body_type=pymunk.Body.STATIC)
                     trail.position = pos
                     trail_shape = pymunk.Circle(trail, radius=3)
                     trail_shape.collision_type = 37
 
                     space.add(trail, trail_shape)
                     step = 0
+
+                handler_ball_trail.begin = self.ball_with_trail  # Collision between ball and trail
+                handler_manipulator_trail.begin = self.link_with_trail  # Collision between links and trail
 
             # Update physics -------------------------------------------------------------------------------------------
             if not finished:

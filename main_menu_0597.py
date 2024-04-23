@@ -162,6 +162,7 @@ class Menu:
 
     def down(self):
         """Cycles list of labels down"""
+        self.list_refresh()
         if self.highlighted + 1 <= self.max_index:
             self.highlighted += 1
             if self.highlighted > self.currently_viewed[-1]:
@@ -173,6 +174,7 @@ class Menu:
     def list_refresh(self):
         """Refreshes the list of labels displayed in the main window"""
         # self.check_files()
+        self.max_index = self.num_of_solutions - 1  # Determining maximum index for a row in a column
         i = 0
         # print(self.highlighted)
         if self.num_of_solutions <= self.view_cap:  # Limiting the amount of labels created
@@ -190,16 +192,16 @@ class Menu:
                 label.config(background="green")
             else:
                 label.config(background="gray")
-            label.config(text=f"Experiment number {num + 1}. "
+            label.config(text=f"Experiment number {num + 1}. Title: {self.solutions_file['title'][num]}.\n"
                               f"Best fitness: "
-                              f"{round(float((self.solutions_file["Fitness value of the best solution"][num])), 3)}/"
-                              f"{self.solutions_file["max_fitness"][num]},\n "
-                              f"best distance: {round(float((self.solutions_file["Best solution distance"][num])), 3)}, "
-                              f"time: {round(float((self.solutions_file["Best solution time of throw"][num])), 3)},\n "
-                              f"best work sum: {round(float((self.solutions_file["Best solution total work sum"][num])), 3)}, "
-                              f"number or movable links: {round(float((self.solutions_file["Num of movable links"][num])), 3)}, "
-                              f"target x coordinate {(self.solutions_file["target_xcor"][num])}")
-            label.grid(row=1+i+1, column=0, columnspan=2)
+                              f"{round(float((self.solutions_file['Fitness value of the best solution'][num])), 3)}/"
+                              f"{self.solutions_file['max_fitness'][num]},\n "
+                              f"smallest distance error: {round(float((self.solutions_file['Best solution distance'][num])), 3)}, "
+                              f"time: {round(float((self.solutions_file['Best solution time of throw'][num])), 3)},\n "
+                              f"best work sum: {round(float((self.solutions_file['Best solution total work sum'][num])), 3)}, "
+                              f"number or movable links: {round(float((self.solutions_file['Num of movable links'][num])), 3)}, "
+                              f"target x coordinate {(self.solutions_file['target_xcor'][num])}")
+            label.grid(row=1 + i + 1, column=0, columnspan=2)
             i += 1
 
     def start_sim(self, picks):
@@ -212,7 +214,9 @@ class Menu:
         best_solution = self.solutions_file["Best solution"][self.highlighted][1:-1].split(sep=",")
         best_solution = [float(_) for _ in best_solution]
 
-        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != "False":
+        print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
+        print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
+        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False:
             minimum_solution_sim = Simulation(
                 genetic_solution=acceptable_solution,
                 ui_flag=True,
@@ -270,7 +274,7 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "Num of interpolation angles: ",
-                          "'robotic' or 'stiff' gripper: "]
+                          "'robotic' or 'stiff' gripper: ", "Title: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -325,7 +329,8 @@ class Menu:
                                  df_from_file["max_fitness"][index], df_from_file["distance_value"][index],
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
-                                 num_of_training_instances, interpolation_angles, df_from_file["gripper_type"][index]]
+                                 num_of_training_instances, interpolation_angles, df_from_file["gripper_type"][index],
+                                 "Title"]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
@@ -381,6 +386,7 @@ class Menu:
             "Num_of_training_instances": entry_lists[0][8].get(),
             "Num_of_interpolation_angles": entry_lists[0][9].get(),
             "gripper_type": entry_lists[0][10].get(),
+            "title": entry_lists[0][11].get(),
         }
 
         # Getting values from left entry widgets
@@ -407,7 +413,7 @@ class Menu:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
-            elif i == 10:  # Gripper type is a string
+            elif i in (10, 11):  # Gripper type is a string
                 pass
             else:
                 try:

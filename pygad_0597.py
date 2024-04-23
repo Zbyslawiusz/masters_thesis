@@ -45,6 +45,7 @@ class GeneticAlgorithm:
         self.random_mutation_max_val = ga_params["random_mutation_max_val"]
         self.mutation_probability = ga_params["mutation_probability"]
         self.sol_per_pop = ga_params["sol_per_pop"]  # Number of solutions in the population.
+        self.title = fitness_params["title"]
 
         self.displayed_generation = 0  # Displayed in main menu's training progress window
         self.displayed_fitness = 0  # Displayed in main menu's training progress window
@@ -162,43 +163,44 @@ class GeneticAlgorithm:
 
             df = pd.DataFrame(
                 {
-                    "Num of movable links": self.number_of_links,
-                    "target_xcor": self.target_xcor,
-                    "Elapsed time": elapsed_time,
+                    "title": [self.title],
+                    "Num of movable links": [self.number_of_links],
+                    "target_xcor": [self.target_xcor],
+                    "Elapsed time": [elapsed_time],
                     "Best solution": [best_solution],
-                    "Best solution time": best_solution_time,
-                    "Fitness value of the best solution": solution_fitness,
-                    "Generation of the best solution": self.ga_instance.best_solution_generation,
-                    "Best solution distance": best_solution_sim.error_sum[0],
-                    "Best solution time of throw": best_solution_sim.error_sum[2],
-                    "Best solution total work sum": best_solution_sim.error_sum[3],
+                    "Best solution time": [best_solution_time],
+                    "Fitness value of the best solution": [solution_fitness],
+                    "Generation of the best solution": [self.ga_instance.best_solution_generation],
+                    "Best solution distance": [best_solution_sim.error_sum[0]],
+                    "Best solution time of throw": [best_solution_sim.error_sum[2]],
+                    "Best solution total work sum": [best_solution_sim.error_sum[3]],
                     "Acceptable solution": [self.minimum_solution],
-                    "Acceptable solution time": minimum_time,
-                    "Fitness value of the acceptable solution": self.acceptable_fitness,
-                    "Generation of the acceptable solution": self.generation,
-                    "Acceptable solution distance": acceptable_solution_distance,
-                    "Acceptable solution time of throw": acceptable_solution_time_of_throw,
-                    "Acceptable solution total work sum": acceptable_solution_total_work_sum,
-                    "num_generations": self.num_generations,
-                    "num_parents_mating": self.num_parents_mating,
-                    "parent_selection_type": self.parent_selection_type,
-                    "crossover_type": self.crossover_type,
-                    "init_range_low": self.init_range_low,
-                    "init_range_high": self.init_range_high,
-                    "random_mutation_min_val": self.random_mutation_min_val,
-                    "random_mutation_max_val": self.random_mutation_max_val,
-                    "mutation_probability": self.mutation_probability,
-                    "sol_per_pop": self.sol_per_pop,
-                    "max_fitness": self.max_fitness,
-                    "distance_value": self.distance_value,  # Weight of distance in fitness function
-                    "time_value": self.time_value,  # Weight of time of throw in fitness function
-                    "work_sum_value": self.work_sum_value,  # Weight of total work sum in fitness function
-                    "penalty_col": self.penalty_col,  # Penalty for hitting the obstacle
-                    "penalty_angle": self.penalty_angle,  # Penalty for wrong angle solutions
+                    "Acceptable solution time": [minimum_time],
+                    "Fitness value of the acceptable solution": [self.acceptable_fitness],
+                    "Generation of the acceptable solution": [self.generation],
+                    "Acceptable solution distance": [acceptable_solution_distance],
+                    "Acceptable solution time of throw": [acceptable_solution_time_of_throw],
+                    "Acceptable solution total work sum": [acceptable_solution_total_work_sum],
+                    "num_generations": [self.num_generations],
+                    "num_parents_mating": [self.num_parents_mating],
+                    "parent_selection_type": [self.parent_selection_type],
+                    "crossover_type": [self.crossover_type],
+                    "init_range_low": [self.init_range_low],
+                    "init_range_high": [self.init_range_high],
+                    "random_mutation_min_val": [self.random_mutation_min_val],
+                    "random_mutation_max_val": [self.random_mutation_max_val],
+                    "mutation_probability": [self.mutation_probability],
+                    "sol_per_pop": [self.sol_per_pop],
+                    "max_fitness": [self.max_fitness],
+                    "distance_value": [self.distance_value],  # Weight of distance in fitness function
+                    "time_value": [self.time_value],  # Weight of time of throw in fitness function
+                    "work_sum_value": [self.work_sum_value],  # Weight of total work sum in fitness function
+                    "penalty_col": [self.penalty_col],  # Penalty for hitting the obstacle
+                    "penalty_angle": [self.penalty_angle],  # Penalty for wrong angle solutions
                     "fitness_change": [self.fitness_change],
-                    "Num_of_training_instances": self.ga_amount,
-                    "Num_of_interpolation_angles": self.interpolation,
-                    "gripper_type": self.gripper_type,
+                    "Num_of_training_instances": [self.ga_amount],
+                    "Num_of_interpolation_angles": [self.interpolation],
+                    "gripper_type": [self.gripper_type],
                 }
             )
 
@@ -280,24 +282,25 @@ class GeneticAlgorithm:
             fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
 
         for i in range(0, self.num_genes):
-            if i % 2 != 0:
-                if solution[i] < 0 or solution[i] > 0.5:
-                    # Penalizing for timestamps outside reasonable range (0 - 0.5 seconds)
-                    fitness -= self.penalty_angle
-                try:  # Penalizing the GA for incorrect timestamps (they have to be monotonically increasing)
-                    if solution[i + 1] <= solution[i]:
-                        # nuke_fitness = True
-                        fitness -= self.penalty_angle
-                except IndexError:
-                    pass
-            else:
+            # if i % 2 != 0:
+                # if solution[i] < 0 or solution[i] > 0.5:
+                #     # Penalizing for timestamps outside reasonable range (0 - 0.5 seconds)
+                #     fitness -= self.penalty_angle
+                # try:  # Penalizing the GA for incorrect timestamps (they have to be monotonically increasing)
+                #     if solution[i + 1] <= solution[i]:
+                #         # nuke_fitness = True
+                #         fitness -= self.penalty_angle
+                # except IndexError:
+                #     pass
+            # else:
+            if i % 2 == 0:
                 if solution[i] > pi/2 or solution[i] < -pi/2:
                     fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
 
         if nuke_fitness:
             fitness = 0
 
-        if simulation.error_sum[0] <= 10 and not self.is_set:  # Acquiring the acceptable solution
+        if fitness >= 0.9 * self.max_fitness and not self.is_set:  # Acquiring the acceptable solution
             self.is_set = True
             self.minimum_desired_fitness_reached = True
             self.t1 = time.time()
