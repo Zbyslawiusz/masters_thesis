@@ -26,6 +26,7 @@ class NeatAlgorithm:
         self.penalty_angle = fitness_params["penalty_angle"]  # Penalty for wrong angle solutions
         self.directory = fitness_params["foldername"]  # Unique filename used for config file and trained network
         self.title = fitness_params["title"]
+        self.throw_type = fitness_params["throw_type"]
 
         self.node_add_prob = neat_params["node_add_prob"]
         self.node_delete_prob = neat_params["node_delete_prob"]
@@ -132,18 +133,26 @@ class NeatAlgorithm:
                 ui_flag=False,
                 number_of_links=self.number_of_links,
                 target_xcor=self.target_xcor,
-                gripper=self.gripper_type
+                gripper=self.gripper_type,
+                throw_type=self.throw_type
             )
             # fitness = 1.0 / (error_sum + 0.0001)
             # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
             # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
-            genome.fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +  # 1600 for 1 link
-                                                 self.time_value * simulation.error_sum[2] +
-                                                 self.work_sum_value * simulation.error_sum[3])
+            # Fitness function for throwing the ball at a target x coordinate
+            if self.throw_type == "target":
+                genome.fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
+                                                     self.time_value * simulation.error_sum[2] +
+                                                     self.work_sum_value * simulation.error_sum[3])
 
-            if simulation.error_sum[1]:
-                genome.fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
+                if simulation.error_sum[1]:
+                    genome.fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
+            # Fitness function for throwing the ball as far away as possible
+            elif self.throw_type == "far":
+                genome.fitness = (simulation.error_sum[0] -
+                                  (self.time_value * simulation.error_sum[2] +
+                                   self.work_sum_value * simulation.error_sum[3]))
 
             # print(f"\nSIMULATION ERRORS IN NEAT\n"
             #       f"Fitness: {genome.fitness}\n"
@@ -165,25 +174,26 @@ class NeatAlgorithm:
                 #       f"-----------------------------------------------------------------------------------------\n")
 
             # Monitoring acceptable fitness
-            if genome.fitness > 0.9 * self.max_fitness and not self.is_set:
-                self.is_set = True
-                self.acceptable_fitness = genome.fitness  # Acquiring acceptable fitness value
-                self.t1 = time.time()  # Acquiring acceptable fitness time
-                self.acceptable_generation = self.generation  # Acquiring acceptable fitness generation
-                # print(f"\n-----------------------------------------------------------------------------------------\n"
-                #       f"ACCEPTABLE SOLUTION\n"
-                #       f"Fitness: {genome.fitness}\n"
-                #       f"Distance: {simulation.error_sum[0]}\n"
-                #       f"Time of throw: {simulation.error_sum[2]}\n"
-                #       f"Total work sum: {simulation.error_sum[3]}\n"
-                #       f"-----------------------------------------------------------------------------------------\n")
+            elif self.throw_type != "far":
+                if genome.fitness > 0.9 * self.max_fitness and not self.is_set:
+                    self.is_set = True
+                    self.acceptable_fitness = genome.fitness  # Acquiring acceptable fitness value
+                    self.t1 = time.time()  # Acquiring acceptable fitness time
+                    self.acceptable_generation = self.generation  # Acquiring acceptable fitness generation
+                    # print(f"\n-----------------------------------------------------------------------------------------\n"
+                    #       f"ACCEPTABLE SOLUTION\n"
+                    #       f"Fitness: {genome.fitness}\n"
+                    #       f"Distance: {simulation.error_sum[0]}\n"
+                    #       f"Time of throw: {simulation.error_sum[2]}\n"
+                    #       f"Total work sum: {simulation.error_sum[3]}\n"
+                    #       f"-----------------------------------------------------------------------------------------\n")
 
-                with gzip.open(self.acceptable_filename, 'w', compresslevel=5) as f:
-                    pickle.dump(net, f, protocol=pickle.HIGHEST_PROTOCOL)
+                    with gzip.open(self.acceptable_filename, 'w', compresslevel=5) as f:
+                        pickle.dump(net, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-                self.acceptable_solution_distance = simulation.error_sum[0]
-                self.acceptable_solution_time_of_throw = simulation.error_sum[2]
-                self.acceptable_solution_total_work_sum = simulation.error_sum[3]
+                    self.acceptable_solution_distance = simulation.error_sum[0]
+                    self.acceptable_solution_time_of_throw = simulation.error_sum[2]
+                    self.acceptable_solution_total_work_sum = simulation.error_sum[3]
 
             if self.iteration % self.sol_per_pop == 0:
                 self.generation += 1  # Keeping track of the number of generations
@@ -236,7 +246,8 @@ class NeatAlgorithm:
                 ui_flag=False,
                 number_of_links=self.number_of_links,
                 target_xcor=self.target_xcor,
-                gripper=self.gripper_type
+                gripper=self.gripper_type,
+                throw_type=self.throw_type
             )
         fitness = self.max_fitness - (self.distance_value * best_solution_sim.error_sum[0] +
                                       self.time_value * best_solution_sim.error_sum[2] +
@@ -279,6 +290,7 @@ class NeatAlgorithm:
         df = pd.DataFrame(
             {
                 "title": [self.title],
+                "throw_type": [self.throw_type],
                 "Num of movable links": [self.number_of_links],
                 "target_xcor": [self.target_xcor],
                 "Elapsed time": [elapsed_time],
@@ -333,6 +345,7 @@ class NeatAlgorithm:
 
         current_settings = pd.DataFrame(
             {
+                "throw_type": self.throw_type,
                 "Num of movable links": self.number_of_links,
                 "activation_type": self.activation_type,
                 "num_hidden": self.num_hidden,

@@ -195,7 +195,8 @@ class Menu:
             label.config(text=f"Experiment number {num + 1}. Title: {self.solutions_file['title'][num]}.\n"
                               f"Best fitness: "
                               f"{round(float((self.solutions_file['Fitness value of the best solution'][num])), 3)}/"
-                              f"{self.solutions_file['max_fitness'][num]},\n "
+                              f"{self.solutions_file['max_fitness'][num]}, type of throw: "
+                              f"{self.solutions_file['throw_type'][self.highlighted]}\n "
                               f"smallest distance error: {round(float((self.solutions_file['Best solution distance'][num])), 3)}, "
                               f"time: {round(float((self.solutions_file['Best solution time of throw'][num])), 3)},\n "
                               f"best work sum: {round(float((self.solutions_file['Best solution total work sum'][num])), 3)}, "
@@ -216,7 +217,8 @@ class Menu:
 
         print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
         print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
-        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False:
+        if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
+                and self.solutions_file["throw_type"][self.highlighted] != "far"):
             minimum_solution_sim = Simulation(
                 genetic_solution=acceptable_solution,
                 ui_flag=True,
@@ -226,7 +228,8 @@ class Menu:
                 gripper=self.solutions_file["gripper_type"][self.highlighted],
                 time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
                 picks_or_not=picks,
-                type="acceptable",
+                sim_type="acceptable",
+                throw_type=self.solutions_file["throw_type"][self.highlighted]
             )
 
         best_solution_sim = Simulation(
@@ -238,7 +241,8 @@ class Menu:
             gripper=self.solutions_file["gripper_type"][self.highlighted],
             time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
             picks_or_not=picks,
-            type="best",
+            sim_type="best",
+            throw_type=self.solutions_file["throw_type"][self.highlighted]
         )
 
         generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
@@ -274,7 +278,7 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "Num of interpolation angles: ",
-                          "'robotic' or 'stiff' gripper: ", "Title: "]
+                          "'robotic' or 'stiff' gripper: ", "Title: ",  "'target' or 'far' throw: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -330,7 +334,7 @@ class Menu:
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
                                  num_of_training_instances, interpolation_angles, df_from_file["gripper_type"][index],
-                                 "Title"]
+                                 "Title", df_from_file["throw_type"][index]]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
@@ -387,6 +391,7 @@ class Menu:
             "Num_of_interpolation_angles": entry_lists[0][9].get(),
             "gripper_type": entry_lists[0][10].get(),
             "title": entry_lists[0][11].get(),
+            "throw_type": entry_lists[0][12].get(),
         }
 
         # Getting values from left entry widgets
@@ -413,7 +418,7 @@ class Menu:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
-            elif i in (10, 11):  # Gripper type is a string
+            elif i in (10, 11, 12):  # Gripper type is a string
                 pass
             else:
                 try:
@@ -457,15 +462,6 @@ class Menu:
         #     progress_window.after(1000)
         #
         #     progress_window.mainloop()
-
-    def start_training(self, fitness_params, ga_params):
-        """Starts training of the genetic algorithm"""
-        training_instance = GeneticAlgorithm(fitness_params=fitness_params, ga_params=ga_params)
-
-    # def training_ui(self, *labels, window, info):
-    #     labels[0].config(text=f"Current generation: {info[0]}")
-    #     labels[1].config(text=f"Highest achieved fitness so far: {info[1]}")
-    #     window.update()
 
     def close_window(self, window):
         """This method closes passed popup window"""

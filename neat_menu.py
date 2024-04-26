@@ -218,7 +218,8 @@ class Menu:
             label.config(text=f"Experiment number {num + 1}. Title: {self.solutions_file['title'][num]}.\n"
                               f"Best fitness: "
                               f"{round(float((self.solutions_file['Fitness value of the best solution'][num])), 3)}/"
-                              f"{self.solutions_file['max_fitness'][num]},\n "
+                              f"{self.solutions_file['max_fitness'][num]}, type of throw: "
+                              f"{self.solutions_file['throw_type'][self.highlighted]}\n "
                               f"smallest distance error: {round(float((self.solutions_file['Best solution distance'][num])), 3)}, "
                               f"time: {round(float((self.solutions_file['Best solution time of throw'][num])), 3)},\n "
                               f"best work sum: {round(float((self.solutions_file['Best solution total work sum'][num])), 3)}, "
@@ -245,7 +246,8 @@ class Menu:
         # Restoring checkpoint of the acceptable solution if it has been reached
         print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
         print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
-        if self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False:
+        if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
+            and self.solutions_file["throw_type"][self.highlighted] != "far"):
             with gzip.open(net_path) as f:
                 net = pickle.load(f)
 
@@ -258,7 +260,10 @@ class Menu:
                 time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
                 picks_or_not=picks,
                 sim_type="acceptable",
+                throw_type=self.solutions_file["throw_type"][self.highlighted]
             )
+            print(f"Acceptable solution time of throw: "
+                  f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
 
         # Restoring checkpoint of the best solution
         with gzip.open(net_path) as f:
@@ -273,7 +278,10 @@ class Menu:
             time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
             picks_or_not=picks,
             sim_type="best",
+            throw_type=self.solutions_file["throw_type"][self.highlighted]
         )
+        print(f"Best solution time of throw: "
+              f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
 
         best_solution_sim = Simulation(
             net=net,
@@ -282,7 +290,7 @@ class Menu:
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
             gripper=self.solutions_file["gripper_type"][self.highlighted],
             time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
-            picks_or_not=picks,
+            picks_or_not=False,
             sim_type="best",
         )
 
@@ -319,7 +327,7 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "'robotic' or 'stiff' gripper: ",
-                          "Title: "]
+                          "Title: ", "'target' or 'far' throw: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -355,7 +363,7 @@ class Menu:
         confirm_button = (tk.Button(self.new_train_window, text="CONFIRM AND START TRAINING", font=("Consolas", 30, "bold"),
                                     command=lambda: self.to_confirm_training(left_entry_list, right_entry_list,
                                                                              label=info_label)))
-        confirm_button.grid(row=len(left_label_list)+2, column=0, columnspan=4)
+        confirm_button.grid(row=len(right_label_list)+2, column=0, columnspan=4)
 
         if isinstance(df_from_file, pd.core.frame.DataFrame):  # Checking if there is a file passed to the function
             # print("Got the file")
@@ -373,7 +381,7 @@ class Menu:
                                  df_from_file["time_value"][index], df_from_file["work_sum_value"][index],
                                  df_from_file["penalty_col"][index], df_from_file["penalty_angle"][index],
                                  num_of_training_instances, df_from_file["gripper_type"][index],
-                                 "Title"]
+                                 "Title", df_from_file["throw_type"][index]]
 
             for i in range(0, len(left_entry_list)):
                 left_entry_list[i].insert(-1, left_entry_insert[i])
@@ -430,6 +438,7 @@ class Menu:
             "Num_of_training_instances": entry_lists[0][8].get(),
             "gripper_type": entry_lists[0][9].get(),
             "title": entry_lists[0][10].get(),
+            "throw_type": entry_lists[0][11].get(),
         }
 
         # Getting values from left entry widgets
@@ -458,7 +467,7 @@ class Menu:
                     errors_detected = True
                     label.config(text=wrong_text)
                     fitness_params[key] = "ERROR"
-            elif i in (9, 10):  # Gripper type is a string
+            elif i in (9, 10, 11):  # Gripper type is a string
                 pass
             else:
                 try:
@@ -522,6 +531,10 @@ class Menu:
                 "conn_delete_prob": neat_params["conn_delete_prob"],
             }
 
+            # To allow NEAT to learn up to desired generation
+            if fitness_params["throw_type"] == "far":
+                modify_values["fitness_threshold"] = 1_000_000_000
+
             timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
             unique_name = uuid.uuid4().hex
             foldername = "./neat-models/{0}-{1}".format(unique_name, timestring)
@@ -557,15 +570,6 @@ class Menu:
         #     progress_window.after(1000)
         #
         #     progress_window.mainloop()
-
-    # def start_training(self, fitness_params, ga_params):
-    #     """Starts training of the genetic algorithm"""
-    #     training_instance = NeatAlgorithm(fitness_params=fitness_params, ga_params=ga_params)
-
-    # def training_ui(self, *labels, window, info):
-    #     labels[0].config(text=f"Current generation: {info[0]}")
-    #     labels[1].config(text=f"Highest achieved fitness so far: {info[1]}")
-    #     window.update()
 
     def close_window(self, window):
         """This method closes passed popup window"""
