@@ -24,9 +24,10 @@ GROUND_THICKNESS = 50
 
 class Simulation:
     def __init__(self, net, ui_flag, number_of_links, target_xcor, time_of_throw=1_000_000,
-                 picks_or_not="False", gripper="stiff", sim_type="best"):
+                 picks_or_not=False, gripper="stiff", sim_type="best", throw_type="target"):
 
         self.filenames = []  # List storing filenames of screenshots if they're taken
+        self.throw_type = throw_type
 
         self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
@@ -37,7 +38,8 @@ class Simulation:
         # To make screenshots or not
         self.make_pics = False
         if picks_or_not:
-            # self.make_pics = True
+            self.make_pics = True
+            print("make_picks = True")
             self.interval = time_of_throw / 16
 
             # Folder containing screenshots is cleaned every time new screenshots are to be taken
@@ -132,16 +134,17 @@ class Simulation:
         space.add(ground, ground_shape)
 
         # Creating an obstacle
-        obstacle_height = 400
-        obstacle_width = 10
-        obstacle = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
-        obstacle.position = (self.first_link_x_cor + 800, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
-                             obstacle_height / 2)
+        if self.throw_type == "target":
+            obstacle_height = 400
+            obstacle_width = 10
+            obstacle = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+            obstacle.position = (self.first_link_x_cor + 800, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
+                                 obstacle_height / 2)
 
-        obstacle_shape = pymunk.Poly.create_box(obstacle, (obstacle_width, obstacle_height))
-        obstacle_shape.friction = 0.5
-        obstacle_shape.collision_type = OBSTACLE_COLLISION_TYPE
-        space.add(obstacle, obstacle_shape)
+            obstacle_shape = pymunk.Poly.create_box(obstacle, (obstacle_width, obstacle_height))
+            obstacle_shape.friction = 0.5
+            obstacle_shape.collision_type = OBSTACLE_COLLISION_TYPE
+            space.add(obstacle, obstacle_shape)
 
         # Creating resting point for the manipulator
         stand = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
@@ -185,7 +188,10 @@ class Simulation:
         for link in manipulator.links[1:]:
             link["angle"] = -pi/2  # Subtracting pi/2 in case of horizontal manipulator creator
         # self.x_cor = 2500  # x Coordinate that the ball is supposed to hit
-        registered_distance = 2_000_000  # Default value of distance, penalizes manipulator not doing anything
+        if self.throw_type == "target":
+            registered_distance = 2_000_000  # Default value of distance, penalizes manipulator not doing anything
+        elif self.throw_type == "far":
+            registered_distance = -2_000_000
 
         work_sum = 0
 
@@ -230,7 +236,10 @@ class Simulation:
                 ball_released = True
 
             if manipulator.ball_hit_the_ground and not hit_ground:
-                registered_distance = abs(ball_xcor - self.x_cor)
+                if self.throw_type == "target":
+                    registered_distance = abs(ball_xcor - self.x_cor)
+                elif self.throw_type == "far":
+                    registered_distance = ball_xcor
                 # print(registered_distance)
                 hit_ground = True
 
@@ -302,6 +311,9 @@ class Simulation:
 
                 # Making screenshots of the pymunk window
                 if self.make_pics and elapsed_time >= pick_time:
+                    print("\n--------------------------------------------------------------------------------------\n"
+                          "Screenshot Done"
+                          "\n--------------------------------------------------------------------------------------\n")
                     window = gw.getWindowsWithTitle('pygame window')[0]
                     # Capturing a specific region of the screen (left, top, right, bottom)
                     screenshot = ImageGrab.grab(bbox=(window.left,

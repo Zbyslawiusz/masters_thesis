@@ -46,6 +46,7 @@ class GeneticAlgorithm:
         self.mutation_probability = ga_params["mutation_probability"]
         self.sol_per_pop = ga_params["sol_per_pop"]  # Number of solutions in the population.
         self.title = fitness_params["title"]
+        self.throw_type = fitness_params["throw_type"]
 
         self.displayed_generation = 0  # Displayed in main menu's training progress window
         self.displayed_fitness = 0  # Displayed in main menu's training progress window
@@ -147,7 +148,8 @@ class GeneticAlgorithm:
                     number_of_links=self.number_of_links,
                     target_xcor=self.target_xcor,
                     interpolation=self.interpolation,
-                    gripper=self.gripper_type
+                    gripper=self.gripper_type,
+                    throw_type=self.throw_type
                 )
                 acceptable_solution_distance = minimum_solution_sim.error_sum[0]
                 acceptable_solution_time_of_throw = minimum_solution_sim.error_sum[2]
@@ -159,11 +161,14 @@ class GeneticAlgorithm:
                 number_of_links=self.number_of_links,
                 target_xcor=self.target_xcor,
                 interpolation=self.interpolation,
-                gripper=self.gripper_type)
+                gripper=self.gripper_type,
+                throw_type=self.throw_type
+            )
 
             df = pd.DataFrame(
                 {
                     "title": [self.title],
+                    "throw_type": [self.throw_type],
                     "Num of movable links": [self.number_of_links],
                     "target_xcor": [self.target_xcor],
                     "Elapsed time": [elapsed_time],
@@ -216,6 +221,7 @@ class GeneticAlgorithm:
 
             current_settings = pd.DataFrame(
                 {
+                    "throw_type": self.throw_type,
                     "Num of movable links": self.number_of_links,
                     "target_xcor": self.target_xcor,
                     "num_generations": self.num_generations,
@@ -267,19 +273,27 @@ class GeneticAlgorithm:
             number_of_links=self.number_of_links,
             target_xcor=self.target_xcor,
             interpolation=self.interpolation,
-            gripper=self.gripper_type
+            gripper=self.gripper_type,
+            throw_type=self.throw_type
         )
         # fitness = 1.0 / (error_sum + 0.0001)
 
         # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
         # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
-        fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
-                                      self.time_value * simulation.error_sum[2] +
-                                      self.work_sum_value * simulation.error_sum[3])
+        # Fitness function for throwing the ball at a target x coordinate
+        if self.throw_type == "target":
+            fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
+                                          self.time_value * simulation.error_sum[2] +
+                                          self.work_sum_value * simulation.error_sum[3])
 
-        if simulation.error_sum[1]:
-            fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
+            if simulation.error_sum[1]:
+                fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
+        # Fitness function for throwing the ball as far away as possible
+        elif self.throw_type == "far":
+            fitness = (simulation.error_sum[0] -
+                       (self.time_value * simulation.error_sum[2] +
+                        self.work_sum_value * simulation.error_sum[3]))
 
         for i in range(0, self.num_genes):
             # if i % 2 != 0:
@@ -300,12 +314,13 @@ class GeneticAlgorithm:
         if nuke_fitness:
             fitness = 0
 
-        if fitness >= 0.9 * self.max_fitness and not self.is_set:  # Acquiring the acceptable solution
-            self.is_set = True
-            self.minimum_desired_fitness_reached = True
-            self.t1 = time.time()
-            self.minimum_solution = [_ for _ in solution]
-            self.acceptable_fitness = fitness
+        elif self.throw_type != "far":
+            if fitness >= 0.9 * self.max_fitness and not self.is_set:  # Acquiring the acceptable solution
+                self.is_set = True
+                self.minimum_desired_fitness_reached = True
+                self.t1 = time.time()
+                self.minimum_solution = [_ for _ in solution]
+                self.acceptable_fitness = fitness
 
         if fitness >= self.best_fitness:  # Recording the time it took to reach the best solution
             self.best_fitness = fitness
