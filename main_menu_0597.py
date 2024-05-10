@@ -217,8 +217,11 @@ class Menu:
 
         print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
         print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
+        # if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
+        #         and self.solutions_file["throw_type"][self.highlighted] != "far"):
         if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
-                and self.solutions_file["throw_type"][self.highlighted] != "far"):
+                and self.solutions_file["throw_type"][self.highlighted] != "far"
+                and self.solutions_file["Acceptable solution time of throw"][self.highlighted] != 0):
             minimum_solution_sim = Simulation(
                 genetic_solution=acceptable_solution,
                 ui_flag=True,
@@ -226,7 +229,7 @@ class Menu:
                 target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
                 interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
                 gripper=self.solutions_file["gripper_type"][self.highlighted],
-                time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
+                time_of_throw=float(self.solutions_file["Acceptable solution time of throw"][self.highlighted]),
                 picks_or_not=picks,
                 sim_type="acceptable",
                 throw_type=self.solutions_file["throw_type"][self.highlighted]
@@ -239,7 +242,7 @@ class Menu:
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
             interpolation=int(self.solutions_file["Num_of_interpolation_angles"][self.highlighted]),
             gripper=self.solutions_file["gripper_type"][self.highlighted],
-            time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
+            time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
             picks_or_not=picks,
             sim_type="best",
             throw_type=self.solutions_file["throw_type"][self.highlighted]
@@ -250,9 +253,9 @@ class Menu:
         fitness_change = self.solutions_file["fitness_change"][self.highlighted][1:-1].split(sep=",")
         fitness_change = [float(_) for _ in fitness_change]
 
-        self.fitness_plot = plt.plot(generations, fitness_change)
+        self.fitness_plot = plt.plot([_ for _ in range(len(fitness_change))], fitness_change)
         plt.clf()
-        self.fitness_plot = plt.plot(generations, fitness_change)
+        self.fitness_plot = plt.plot([_ for _ in range(len(fitness_change))], fitness_change)
         plt.xlabel("Generations number")
         plt.ylabel("Fitness value")
         plt.show()
@@ -278,7 +281,7 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "Num of interpolation angles: ",
-                          "'robotic' or 'stiff' gripper: ", "Title: ",  "'target' or 'far' throw: "]
+                          "'robotic' or 'stiff' gripper: ", "Title: ",  "'target', 'far', 'gimmick' throw: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))

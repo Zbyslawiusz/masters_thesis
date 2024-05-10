@@ -1,7 +1,7 @@
 from __future__ import print_function
 import os
 import neat
-# import visualize
+import visualize
 import pickle
 import gzip
 import uuid
@@ -66,6 +66,7 @@ class NeatAlgorithm:
 
         self.num_generations = neat_params["num_generations"]
         self.training_finished = False
+        self.multi_targets = [1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000]
 
         # For measuring purposes
         self.t0 = time.time()
@@ -128,20 +129,21 @@ class NeatAlgorithm:
             #     genome.fitness -= (output[0] - xo[0]) ** 2
             # nuke_fitness = False
 
-            simulation = Simulation(
-                net=net,
-                ui_flag=False,
-                number_of_links=self.number_of_links,
-                target_xcor=self.target_xcor,
-                gripper=self.gripper_type,
-                throw_type=self.throw_type
-            )
             # fitness = 1.0 / (error_sum + 0.0001)
             # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
             # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
             # Fitness function for throwing the ball at a target x coordinate
-            if self.throw_type == "target":
+            if self.throw_type == "target" or self.throw_type == "gimmick":
+                simulation = Simulation(
+                    net=net,
+                    ui_flag=False,
+                    number_of_links=self.number_of_links,
+                    target_xcor=self.target_xcor,
+                    gripper=self.gripper_type,
+                    throw_type=self.throw_type
+                )
+
                 genome.fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
                                                      self.time_value * simulation.error_sum[2] +
                                                      self.work_sum_value * simulation.error_sum[3])
@@ -150,6 +152,15 @@ class NeatAlgorithm:
                     genome.fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
             # Fitness function for throwing the ball as far away as possible
             elif self.throw_type == "far":
+                simulation = Simulation(
+                    net=net,
+                    ui_flag=False,
+                    number_of_links=self.number_of_links,
+                    target_xcor=self.target_xcor,
+                    gripper=self.gripper_type,
+                    throw_type=self.throw_type
+                )
+
                 genome.fitness = (simulation.error_sum[0] -
                                   (self.time_value * simulation.error_sum[2] +
                                    self.work_sum_value * simulation.error_sum[3]))
@@ -159,6 +170,37 @@ class NeatAlgorithm:
             #       f"Distance: {simulation.error_sum[0]}\n"
             #       f"Time of throw: {simulation.error_sum[2]}\n"
             #       f"Total work sum: {simulation.error_sum[3]}\n")
+
+            elif self.throw_type == "multi-target":
+                fitnesses = []
+                for target in self.multi_targets:
+                    simulation = Simulation(
+                        net=net,
+                        ui_flag=False,
+                        number_of_links=self.number_of_links,
+                        target_xcor=target,
+                        gripper=self.gripper_type,
+                        throw_type=self.throw_type
+                    )
+
+                    fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
+                                                  self.time_value * simulation.error_sum[2] +
+                                                  self.work_sum_value * simulation.error_sum[3])
+
+                    # if simulation.error_sum[1]:
+                    #     fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
+
+                    fitnesses.append(fitness)
+                    print(f"Fitness of {target} target: {fitness}")
+
+                # Calculating mean square of all simulation fitness values
+                genome.fitness = 0
+                for _ in fitnesses:
+                    # genome.fitness += _**2
+                    genome.fitness += _
+                genome.fitness /= len(fitnesses)
+                # genome.fitness **= 0.5
+                print(f"Genome fitness: {genome.fitness}")
 
             # Monitoring best fitness
             if genome.fitness > self.best_fitness:
@@ -268,10 +310,50 @@ class NeatAlgorithm:
         #     output = winner_net.activate(xi)
         #     print("input {!r}, expected output {!r}, got {!r}".format(xi, xo, output))
 
-        # node_names = {-1: 'A', -2: 'B', 0: 'A XOR B'}
-        # visualize.draw_net(config, winner, True, node_names=node_names)
-        # visualize.plot_stats(stats, ylog=False, view=True)
-        # visualize.plot_species(stats, view=True)
+        # Display the winning genome.
+        print('\nBest genome:\n{!s}'.format(winner))
+
+        if self.throw_type == "multi-target":
+            node_names = {
+                -5 - self.number_of_links * 2: "desired ball x cor",
+                -4 - self.number_of_links * 2: "ball x cor",
+                -3 - self.number_of_links * 2: "ball y cor",
+                -2 - self.number_of_links * 2: "ball x velocity",
+                -1 - self.number_of_links * 2: "ball y velocity",
+            }
+
+        else:
+            node_names = {
+                -4 - self.number_of_links * 2: "ball x cor",
+                -3 - self.number_of_links * 2: "ball y cor",
+                -2 - self.number_of_links * 2: "ball x velocity",
+                -1 - self.number_of_links * 2: "ball y velocity",
+            }
+        i = - self.number_of_links * 2
+        j = 1
+        for _ in range(0, self.number_of_links):
+            node_names[i] = f"current angle {j}"
+            i += 1
+            j += 1
+        i = - self.number_of_links
+        j = 1
+        for _ in range(0, self.number_of_links):
+            node_names[i] = f"previous angle {j}"
+            i += 1
+            j += 1
+
+        j = 1
+        for _ in range(0, self.number_of_links):
+            node_names[_] = f"motor torque {j}"
+            i += 1
+            j += 1
+        # for key in node_names:
+        #     print(f"{key}: {node_names[key]}")
+
+        visualize.draw_net(config, winner, True, node_names=node_names)
+        # visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+        visualize.plot_stats(stats, ylog=False, view=True)
+        visualize.plot_species(stats, view=True)
 
         # p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-4')
         # p = neat.Checkpointer.restore_checkpoint('./neat_checkpoints/neat-checkpoint-4')

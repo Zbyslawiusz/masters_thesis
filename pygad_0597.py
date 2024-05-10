@@ -89,9 +89,13 @@ class GeneticAlgorithm:
         # GA parameters
         if self.gripper_type == "stiff":
             self.num_genes = self.number_of_links * self.interpolation * 2  # Angles and their timestamps
+            if self.throw_type == "gimmick":
+                self.num_genes += 1
         elif self.gripper_type == "robotic":
             # Angles and their timestamps and timestamp of gripper opening its claws
             self.num_genes = self.number_of_links * self.interpolation * 2 + 1
+            if self.throw_type == "gimmick":
+                self.num_genes += 1
         self.last_fitness = 0
         self.ga_instance = pygad.GA(num_generations=self.num_generations,
                                     num_parents_mating=self.num_parents_mating,
@@ -281,8 +285,8 @@ class GeneticAlgorithm:
         # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
         # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
-        # Fitness function for throwing the ball at a target x coordinate
-        if self.throw_type == "target":
+        # Fitness function for throwing the ball at target x coordinate
+        if self.throw_type == "target" or self.throw_type == "gimmick":
             fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
                                           self.time_value * simulation.error_sum[2] +
                                           self.work_sum_value * simulation.error_sum[3])
@@ -295,7 +299,7 @@ class GeneticAlgorithm:
                        (self.time_value * simulation.error_sum[2] +
                         self.work_sum_value * simulation.error_sum[3]))
 
-        for i in range(0, self.num_genes):
+        # for i in range(0, self.num_genes):
             # if i % 2 != 0:
                 # if solution[i] < 0 or solution[i] > 0.5:
                 #     # Penalizing for timestamps outside reasonable range (0 - 0.5 seconds)
@@ -307,9 +311,9 @@ class GeneticAlgorithm:
                 # except IndexError:
                 #     pass
             # else:
-            if i % 2 == 0:
-                if solution[i] > pi/2 or solution[i] < -pi/2:
-                    fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
+            # if i % 2 == 0:
+            #     if solution[i] > pi/2 or solution[i] < -pi/2:
+            #         fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
 
         if nuke_fitness:
             fitness = 0

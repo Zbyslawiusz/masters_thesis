@@ -4,12 +4,13 @@ import uuid
 import time
 import gzip
 import pickle
+import neat
+import visualize
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from main_neat import Simulation
-from neat_algorithm import NeatAlgorithm
 
 
 class Menu:
@@ -242,46 +243,59 @@ class Menu:
         # best_solution = self.solutions_file["Best solution"][self.highlighted][1:-1].split(sep=",")
         # best_solution = [float(_) for _ in best_solution]
         net_path = self.solutions_file["net_path"][self.highlighted]
+        config_directory = os.path.dirname(net_path)
+        config_path = os.path.join(config_directory, "config")
+        config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                             config_path)
+        stats = neat.StatisticsReporter()
 
         # Restoring checkpoint of the acceptable solution if it has been reached
         print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
         print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
         if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
-            and self.solutions_file["throw_type"][self.highlighted] != "far"):
+            and self.solutions_file["throw_type"][self.highlighted] != "far"
+                and self.solutions_file["Acceptable solution time of throw"][self.highlighted] != 0):
             with gzip.open(net_path) as f:
                 net = pickle.load(f)
 
+            print(f"Acceptable solution time of throw: "
+                  f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
             minimum_solution_sim = Simulation(
                 net=net,
                 ui_flag=True,
                 number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
                 target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
                 gripper=self.solutions_file["gripper_type"][self.highlighted],
-                time_of_throw=self.solutions_file["Acceptable solution time of throw"][self.highlighted],
+                time_of_throw=float(self.solutions_file["Acceptable solution time of throw"][self.highlighted]),
                 picks_or_not=picks,
                 sim_type="acceptable",
                 throw_type=self.solutions_file["throw_type"][self.highlighted]
             )
-            print(f"Acceptable solution time of throw: "
-                  f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
+
+            number_of_links = int(self.solutions_file["Num of movable links"][self.highlighted])
+            self.visualise_net(config=config, net=net, stats=stats, number_of_links=number_of_links)
 
         # Restoring checkpoint of the best solution
         with gzip.open(net_path) as f:
             net = pickle.load(f)
 
+        print(f"Best solution time of throw: "
+              f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
         best_solution_sim = Simulation(
             net=net,
             ui_flag=True,
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
             gripper=self.solutions_file["gripper_type"][self.highlighted],
-            time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
+            time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
             picks_or_not=picks,
             sim_type="best",
             throw_type=self.solutions_file["throw_type"][self.highlighted]
         )
-        print(f"Best solution time of throw: "
-              f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
+
+        number_of_links = int(self.solutions_file["Num of movable links"][self.highlighted])
+        self.visualise_net(config=config, net=net, stats=stats, number_of_links=number_of_links)
 
         best_solution_sim = Simulation(
             net=net,
@@ -289,7 +303,7 @@ class Menu:
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
             gripper=self.solutions_file["gripper_type"][self.highlighted],
-            time_of_throw=self.solutions_file["Best solution time of throw"][self.highlighted],
+            time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
             picks_or_not=False,
             sim_type="best",
         )
@@ -327,7 +341,7 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "'robotic' or 'stiff' gripper: ",
-                          "Title: ", "'target' or 'far' throw: "]
+                          "Title: ", "'target', 'far',\n 'gimmick', 'multi-target' throw: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -534,6 +548,14 @@ class Menu:
             # To allow NEAT to learn up to desired generation
             if fitness_params["throw_type"] == "far":
                 modify_values["fitness_threshold"] = 1_000_000_000
+            if fitness_params["gripper_type"] == "robotic":
+                # Adding output for gripper claws release timestamp
+                modify_values["num_outputs"] += 1
+            if fitness_params["throw_type"] == "gimmick":
+                # Adding output for timestamp of links starting to move
+                modify_values["num_outputs"] += 1
+            if fitness_params["throw_type"] == "multi-target":
+                modify_values["num_inputs"] += 1
 
             timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
             unique_name = uuid.uuid4().hex
@@ -574,6 +596,49 @@ class Menu:
     def close_window(self, window):
         """This method closes passed popup window"""
         window.destroy()
+
+    def visualise_net(self, config, net, stats, number_of_links):
+        print('\nBest genome:\n{!s}'.format(net))
+        if self.solutions_file["throw_type"][self.highlighted] == "multi-target":
+            node_names = {
+                -5 - number_of_links * 2: "desired ball x cor",
+                -4 - number_of_links * 2: "ball x cor",
+                -3 - number_of_links * 2: "ball y cor",
+                -2 - number_of_links * 2: "ball x velocity",
+                -1 - number_of_links * 2: "ball y velocity",
+            }
+
+        else:
+            node_names = {
+                -4 - number_of_links * 2: "ball x cor",
+                -3 - number_of_links * 2: "ball y cor",
+                -2 - number_of_links * 2: "ball x velocity",
+                -1 - number_of_links * 2: "ball y velocity",
+            }
+        i = - number_of_links * 2
+        j = 1
+        for _ in range(0, number_of_links):
+            node_names[i] = f"current angle {j}"
+            i += 1
+            j += 1
+        i = - number_of_links
+        j = 1
+        for _ in range(0, number_of_links):
+            node_names[i] = f"previous angle {j}"
+            i += 1
+            j += 1
+
+        j = 1
+        for _ in range(0, number_of_links):
+            node_names[_] = f"motor torque {j}"
+            i += 1
+            j += 1
+
+        # Visualising the best net parameters
+        # visualize.draw_net(config, net, True, node_names=node_names)
+        # visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+        visualize.plot_stats(stats, ylog=False, view=True)
+        visualize.plot_species(stats, view=True)
 
 
 main_menu = Menu()

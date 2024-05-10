@@ -108,7 +108,7 @@ class Simulation:
                 # angles.insert(0, 0)
 
             # It is now possible to interpolate values separated into angles and timestamps
-            print(f"np.array(timestamps): {np.array(timestamps)}, np.array(angles): {np.array(angles)}")
+            # print(f"np.array(timestamps): {np.array(timestamps)}, np.array(angles): {np.array(angles)}")
             interp_func = interp1d(np.array(timestamps), np.array(angles), kind="cubic", fill_value="extrapolate")
             self.interp_functions.append(interp_func)
 
@@ -174,7 +174,7 @@ class Simulation:
         handler_ball_release = space.add_collision_handler(BALL_COLLISION_TYPE, LINK_COLLISION_TYPE)
 
         # Creating ground
-        ground = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        ground = pymunk.Body(body_type=pymunk.Body.STATIC)
         ground.position = (WIDTH / 2, (HEIGHT - GROUND_THICKNESS / 2))
 
         ground_shape = pymunk.Poly.create_box(ground, (60_000, GROUND_THICKNESS))
@@ -182,11 +182,11 @@ class Simulation:
         ground_shape.collision_type = GROUND_COLLISION_TYPE
         space.add(ground, ground_shape)
 
-        # Creating an obstacle
+        # Creating an obstacle for 'target' type of throw
         if self.throw_type == "target":
             obstacle_height = 400
             obstacle_width = 10
-            obstacle = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+            obstacle = pymunk.Body(body_type=pymunk.Body.STATIC)
             obstacle.position = (self.first_link_x_cor + 800, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
                                  obstacle_height / 2)
 
@@ -195,8 +195,97 @@ class Simulation:
             obstacle_shape.collision_type = OBSTACLE_COLLISION_TYPE
             space.add(obstacle, obstacle_shape)
 
+        if self.throw_type == "gimmick":
+            offset = 800
+            width = 250
+            gap = 40
+            self.first_link_x_cor = 400
+
+            obst1_h = 600
+            obst1_w = 10
+            obst1 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst1.position = (self.first_link_x_cor + offset, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
+                              obst1_h / 2)
+            obst1_shape = pymunk.Poly.create_box(obst1, (obst1_w, obst1_h))
+            obst1_shape.collision_type = OBSTACLE_COLLISION_TYPE
+            space.add(obst1, obst1_shape)
+
+            obst2_h = 300
+            obst2_w = 10
+            obst2 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst2.position = (self.first_link_x_cor + offset, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
+                              obst2_h / 2 - obst1_h - gap)
+            obst2_shape = pymunk.Poly.create_box(obst2, (obst2_w, obst2_h))
+            obst2_shape.collision_type = OBSTACLE_COLLISION_TYPE
+            space.add(obst2, obst2_shape)
+
+            obst3_h = 650
+            obst3_w = 10
+            obst3 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst3.position = (self.first_link_x_cor + offset + width, HEIGHT - GROUND_THICKNESS / 2 -
+                              GROUND_THICKNESS / 2 - obst3_h / 2)
+            obst3_shape = pymunk.Poly.create_box(obst3, (obst3_w, obst3_h))
+            obst3_shape.collision_type = 256
+            space.add(obst3, obst3_shape)
+
+            # dynamic obstacle -----------------------------------------------------------------------------------------
+            obst4 = pymunk.Body(100, pymunk.moment_for_box(mass=100, size=(200, 10)))
+            obst4.position = (self.first_link_x_cor + offset + width/2, HEIGHT - GROUND_THICKNESS / 2 -
+                              GROUND_THICKNESS / 2 - obst1_h - gap / 2)
+            obst4_shape = pymunk.Poly.create_box(body=obst4, size=(200, 10))
+            obst4_shape.friction = 1.0
+
+            p = Vec2d(self.first_link_x_cor + offset + width/2, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
+                      obst1_h - gap / 2)
+            b0 = space.static_body
+
+            # anchor joint
+            anchor_joint = pymunk.PivotJoint(b0, obst4, p)
+            anchor_joint.error_bias = 0
+            anchor_motor = pymunk.SimpleMotor(a=b0, b=obst4, rate=5)  # oryginalnie rate=2
+            anchor_motor.max_force = 1000000  # oryginalnie 100000
+
+            space.add(obst4, obst4_shape, anchor_joint, anchor_motor)
+            # dynamic obstacle -----------------------------------------------------------------------------------------
+
+            obst5_h = 10
+            obst5_w = 150
+            obst5 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst5.position = (self.first_link_x_cor + offset + obst1_w/2 + obst5_w/2,
+                              HEIGHT - GROUND_THICKNESS - obst1_h - gap - 100)
+            obst5_shape = pymunk.Poly.create_box(obst5, (obst5_w, obst5_h))
+            obst5_shape.collision_type = 256
+            space.add(obst5, obst5_shape)
+
+            obst6_h = 500
+            obst6_w = 10
+            obst6 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst6.position = (self.first_link_x_cor + offset + width/2, HEIGHT - GROUND_THICKNESS - obst6_h/2)
+            obst6_shape = pymunk.Poly.create_box(obst6, (obst6_w, obst6_h))
+            obst6_shape.collision_type = 256
+            space.add(obst6, obst6_shape)
+
+            obst7_h = 515
+            obst7_w = 10
+            obst7 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst7.position = (self.first_link_x_cor + offset + width/4, HEIGHT - GROUND_THICKNESS - obst7_h/2)
+            obst7_shape = pymunk.Poly.create_box(obst7, (obst7_w, obst7_h))
+            obst7_shape.collision_type = 256
+            space.add(obst7, obst7_shape)
+
+            obst8_h = 200
+            obst8_w = 10
+            obst8 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst8.position = (self.first_link_x_cor + offset + 3*width/4, HEIGHT - GROUND_THICKNESS - obst8_h / 2)
+            obst8_shape = pymunk.Poly.create_box(obst8, (obst8_w, obst8_h))
+            obst8_shape.collision_type = 256
+            space.add(obst8, obst8_shape)
+
+            # Setting the correct target x_cor for the ball to hit
+            self.x_cor = obst3.position[0] - (obst3.position[0] - obst8.position[0]) / 2
+
         # Creating resting point for the manipulator
-        stand = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        stand = pymunk.Body(body_type=pymunk.Body.STATIC)
         stand.position = (self.first_link_x_cor - 50 - self.stand_width / 2,
                           HEIGHT - GROUND_THICKNESS - self.first_link_length / 2 + self.firs_link_width / 2 - 4)
 
@@ -237,7 +326,7 @@ class Simulation:
         for link in manipulator.links[1:]:
             link["angle"] = -pi/2  # Subtracting pi/2 in case of horizontal manipulator creator
         # self.x_cor = 2500  # x Coordinate that the ball is supposed to hit
-        if self.throw_type == "target":
+        if self.throw_type == "target" or self.throw_type == "gimmick":
             registered_distance = 2_000_000  # Default value of distance, penalizes manipulator not doing anything
         elif self.throw_type == "far":
             registered_distance = -2_000_000
@@ -281,7 +370,7 @@ class Simulation:
                 ball_released = True
 
             if manipulator.ball_hit_the_ground and not hit_ground:
-                if self.throw_type == "target":
+                if self.throw_type == "target" or self.throw_type == "gimmick":
                     registered_distance = abs(ball_xcor - self.x_cor)
                 elif self.throw_type == "far":
                     registered_distance = ball_xcor
@@ -322,6 +411,7 @@ class Simulation:
                 work_sum += abs(force * traversed_angle)
                 manipulator.simple_throw(force=force*10000, link=link)  # Moving the link
 
+                # The last value of the solution is a timestamp used to open the gripper claws
                 if self.gripper_type == "robotic" and elapsed_time >= self.control_values[-1] and not open_gripper:
                 # if self.gripper_type == "robotic" and elapsed_time >= 1 and not open_gripper:
                     manipulator.right_claw_motor.rate *= -10  # Reverse robotic claw motors and open the gripper
