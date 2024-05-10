@@ -256,13 +256,15 @@ class Menu:
         if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
             and self.solutions_file["throw_type"][self.highlighted] != "far"
                 and self.solutions_file["Acceptable solution time of throw"][self.highlighted] != 0):
-            with gzip.open(net_path) as f:
+            # with gzip.open(net_path) as f:
+            with gzip.open(net_path, "rb") as f:
                 net = pickle.load(f)
+            neat_net = neat.nn.FeedForwardNetwork.create(net, config)
 
             print(f"Acceptable solution time of throw: "
                   f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
             minimum_solution_sim = Simulation(
-                net=net,
+                net=neat_net,
                 ui_flag=True,
                 number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
                 target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
@@ -277,13 +279,15 @@ class Menu:
             self.visualise_net(config=config, net=net, stats=stats, number_of_links=number_of_links)
 
         # Restoring checkpoint of the best solution
-        with gzip.open(net_path) as f:
+        # with gzip.open(net_path) as f:
+        with gzip.open(net_path, "rb") as f:
             net = pickle.load(f)
+        neat_net = neat.nn.FeedForwardNetwork.create(net, config)
 
         print(f"Best solution time of throw: "
               f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
         best_solution_sim = Simulation(
-            net=net,
+            net=neat_net,
             ui_flag=True,
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
@@ -298,7 +302,7 @@ class Menu:
         self.visualise_net(config=config, net=net, stats=stats, number_of_links=number_of_links)
 
         best_solution_sim = Simulation(
-            net=net,
+            net=neat_net,
             ui_flag=False,
             number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
             target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
@@ -598,6 +602,7 @@ class Menu:
         window.destroy()
 
     def visualise_net(self, config, net, stats, number_of_links):
+        # winner_net = neat.nn.FeedForwardNetwork.create(net, config)
         print('\nBest genome:\n{!s}'.format(net))
         if self.solutions_file["throw_type"][self.highlighted] == "multi-target":
             node_names = {
@@ -635,7 +640,7 @@ class Menu:
             j += 1
 
         # Visualising the best net parameters
-        # visualize.draw_net(config, net, True, node_names=node_names)
+        visualize.draw_net(config, net, True, node_names=node_names)
         # visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
         visualize.plot_stats(stats, ylog=False, view=True)
         visualize.plot_species(stats, view=True)

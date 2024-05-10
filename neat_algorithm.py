@@ -280,11 +280,12 @@ class NeatAlgorithm:
         timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
         filename = '{0}/{1}-{2}'.format(self.directory, filename, timestring)
 
-        with gzip.open(filename, 'w', compresslevel=5) as f:
-            pickle.dump(winner_net, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with gzip.open(filename, 'wb', compresslevel=5) as f:  # 'w'
+            # pickle.dump(winner_net, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(winner, f)
 
             best_solution_sim = Simulation(
-                net=winner_net,
+                net=winner_net,  # winner_net
                 ui_flag=False,
                 number_of_links=self.number_of_links,
                 target_xcor=self.target_xcor,
