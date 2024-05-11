@@ -248,7 +248,10 @@ class Menu:
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                              neat.DefaultSpeciesSet, neat.DefaultStagnation,
                              config_path)
-        stats = neat.StatisticsReporter()
+        # stats = neat.StatisticsReporter()
+        stats_path = "{0}-stats".format(net_path)
+        with open(stats_path, "rb") as f:
+            stats = pickle.load(f)
 
         # Restoring checkpoint of the acceptable solution if it has been reached
         print(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted])
@@ -257,7 +260,9 @@ class Menu:
             and self.solutions_file["throw_type"][self.highlighted] != "far"
                 and self.solutions_file["Acceptable solution time of throw"][self.highlighted] != 0):
             # with gzip.open(net_path) as f:
-            with gzip.open(net_path, "rb") as f:
+            # with gzip.open(net_path, "rb") as f:
+            #     net = pickle.load(f)
+            with open(net_path, "rb") as f:
                 net = pickle.load(f)
             neat_net = neat.nn.FeedForwardNetwork.create(net, config)
 
@@ -280,7 +285,10 @@ class Menu:
 
         # Restoring checkpoint of the best solution
         # with gzip.open(net_path) as f:
-        with gzip.open(net_path, "rb") as f:
+        # with gzip.open(net_path, "rb") as f:
+        #     net = pickle.load(f)
+
+        with open(net_path, "rb") as f:
             net = pickle.load(f)
         neat_net = neat.nn.FeedForwardNetwork.create(net, config)
 
@@ -310,6 +318,7 @@ class Menu:
             time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
             picks_or_not=False,
             sim_type="best",
+            throw_type=self.solutions_file["throw_type"][self.highlighted]
         )
 
         generations = [_ for _ in range(0, self.solutions_file["num_generations"][self.highlighted])]
@@ -527,10 +536,10 @@ class Menu:
                 content = file.readlines()
                 print("reading config")
 
-            if fitness_params["gripper_type"] == "robotic":
-                num_outputs = fitness_params["Num of movable links"] + 1
-            else:
-                num_outputs = fitness_params["Num of movable links"]
+            # if fitness_params["gripper_type"] == "robotic":
+            #     num_outputs = fitness_params["Num of movable links"] + 1
+            # else:
+            #     num_outputs = fitness_params["Num of movable links"]
 
             modify_values = {
                 "fitness_threshold": fitness_params["max_fitness"],
@@ -538,7 +547,7 @@ class Menu:
                 "activation_default": neat_params["activation_type"],
                 "num_hidden": neat_params["num_hidden"],
                 "num_inputs": fitness_params["Num of movable links"] * 2 + 4,
-                "num_outputs": num_outputs,
+                "num_outputs": fitness_params["Num of movable links"],
                 "node_add_prob": neat_params["node_add_prob"],
                 "node_delete_prob": neat_params["node_delete_prob"],
                 "response_max_value": neat_params["response_max_value"],
@@ -552,12 +561,13 @@ class Menu:
             # To allow NEAT to learn up to desired generation
             if fitness_params["throw_type"] == "far":
                 modify_values["fitness_threshold"] = 1_000_000_000
+            # Adding output for gripper claws release timestamp
             if fitness_params["gripper_type"] == "robotic":
-                # Adding output for gripper claws release timestamp
                 modify_values["num_outputs"] += 1
+            # Adding output for timestamp of links starting to move
             if fitness_params["throw_type"] == "gimmick":
-                # Adding output for timestamp of links starting to move
                 modify_values["num_outputs"] += 1
+            # Adding input for target x cor in case of multi-target type of throw
             if fitness_params["throw_type"] == "multi-target":
                 modify_values["num_inputs"] += 1
 
@@ -604,21 +614,21 @@ class Menu:
     def visualise_net(self, config, net, stats, number_of_links):
         # winner_net = neat.nn.FeedForwardNetwork.create(net, config)
         print('\nBest genome:\n{!s}'.format(net))
+
         if self.solutions_file["throw_type"][self.highlighted] == "multi-target":
             node_names = {
                 -5 - number_of_links * 2: "desired ball x cor",
-                -4 - number_of_links * 2: "ball x cor",
-                -3 - number_of_links * 2: "ball y cor",
-                -2 - number_of_links * 2: "ball x velocity",
-                -1 - number_of_links * 2: "ball y velocity",
+                -4 - number_of_links * 2: "ball y velocity",
+                -3 - number_of_links * 2: "ball x velocity",
+                -2 - number_of_links * 2: "ball y cor",
+                -1 - number_of_links * 2: "ball x cor",
             }
-
         else:
             node_names = {
-                -4 - number_of_links * 2: "ball x cor",
-                -3 - number_of_links * 2: "ball y cor",
-                -2 - number_of_links * 2: "ball x velocity",
-                -1 - number_of_links * 2: "ball y velocity",
+                -4 - number_of_links * 2: "ball y velocity",
+                -3 - number_of_links * 2: "ball x velocity",
+                -2 - number_of_links * 2: "ball y cor",
+                -1 - number_of_links * 2: "ball x cor",
             }
         i = - number_of_links * 2
         j = 1
@@ -638,6 +648,15 @@ class Menu:
             node_names[_] = f"motor torque {j}"
             i += 1
             j += 1
+        if self.solutions_file["throw_type"][self.highlighted] == "gimmick":
+            node_names[number_of_links] = "start moving timestamp"
+        # Timestamp of robotic gripper opening is always the last output
+        if (self.solutions_file["gripper_type"][self.highlighted] == "robotic" and
+                not self.solutions_file["throw_type"][self.highlighted] == "gimmick"):
+            node_names[number_of_links] = "gripper opening timestamp"
+        if (self.solutions_file["gripper_type"][self.highlighted] == "robotic" and
+                self.solutions_file["throw_type"][self.highlighted] == "gimmick"):
+            node_names[number_of_links + 1] = "gripper opening timestamp"
 
         # Visualising the best net parameters
         visualize.draw_net(config, net, True, node_names=node_names)

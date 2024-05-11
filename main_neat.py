@@ -341,6 +341,7 @@ class Simulation:
             # Calculating error sum used for first net activation
             current_angles = [link["angle"] for link in manipulator.links[1:]]
             previous_angles = [link["previous_angle"] for link in manipulator.links[1:]]
+            print(f"Throw type: {self.throw_type}")
             if self.throw_type == "multi-target":
                 error = [self.x_cor, ball_xcor, ball_ycor, ball_xvel, ball_yvel] + current_angles + previous_angles
             else:

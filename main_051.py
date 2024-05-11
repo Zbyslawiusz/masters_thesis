@@ -343,6 +343,10 @@ class Simulation:
 
         elapsed_time = 0
         pick_time = self.interval
+
+        # Font for drawing simulation parameters on the pygame screen
+        my_font = pygame.font.SysFont("Arial", 30)
+
         # Main loop ----------------------------------------------------------------------------------------------------
         while running:
 
@@ -428,13 +432,18 @@ class Simulation:
                 pygame.display.flip()
                 clock.tick(fps * 0.25)  # For slow motion
                 # print(link_ang_vel)
+                # Print simulation parameters to the screen
+                text_surface = my_font.render(f"Ball x cor: {ball_xcor}\n"
+                                              f"Ball y cor: {manipulator.ball.position[1]}\n"
+                                              f"Elapsed time: {elapsed_time}", False, (220, 0, 0))
+                screen.blit(text_surface, (0, 0))
 
                 # Making screenshots of the pymunk window
                 if self.make_pics and elapsed_time >= pick_time:
                     print("\n--------------------------------------------------------------------------------------\n"
                           "Screenshot Done"
                           "\n--------------------------------------------------------------------------------------\n")
-                    window = gw.getWindowsWithTitle('pygame window')[0]
+                    window = gw.getWindowsWithTitle("pygame window")[0]
                     # Capturing a specific region of the screen (left, top, right, bottom)
                     screenshot = ImageGrab.grab(bbox=(window.left,
                                                       window.top,

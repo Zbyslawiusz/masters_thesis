@@ -90,7 +90,7 @@ class NeatAlgorithm:
 
         filename = f"{uuid.uuid4().hex}"
         timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
-        self.acceptable_filename = '{0}/{1}-{2}-acceptable'.format(self.directory, filename, timestring)
+        self.acceptable_filename = "{0}/{1}-{2}-acceptable".format(self.directory, filename, timestring)
 
     def neat_start(self, neat_queue):
         self.queue = neat_queue
@@ -230,8 +230,11 @@ class NeatAlgorithm:
                     #       f"Total work sum: {simulation.error_sum[3]}\n"
                     #       f"-----------------------------------------------------------------------------------------\n")
 
-                    with gzip.open(self.acceptable_filename, 'w', compresslevel=5) as f:
-                        pickle.dump(net, f, protocol=pickle.HIGHEST_PROTOCOL)
+                    # with gzip.open(self.acceptable_filename, 'w', compresslevel=5) as f:
+                    #     pickle.dump(net, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+                    with open(self.acceptable_filename, 'wb') as f:
+                        pickle.dump(net, f)
 
                     self.acceptable_solution_distance = simulation.error_sum[0]
                     self.acceptable_solution_time_of_throw = simulation.error_sum[2]
@@ -273,15 +276,21 @@ class NeatAlgorithm:
         # Display the winning genome.
         elapsed_time = time.time() - self.t0
 
-        print('\nBest genome:\n{!s}'.format(winner))
+        print("\nBest genome:\n{!s}".format(winner))
 
         winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
         filename = f"{uuid.uuid4().hex}"
         timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
-        filename = '{0}/{1}-{2}'.format(self.directory, filename, timestring)
+        filename = "{0}/{1}-{2}".format(self.directory, filename, timestring)
 
-        with gzip.open(filename, 'wb', compresslevel=5) as f:  # 'w'
+        stats_name = "{0}-stats".format(filename)
+        with open(stats_name, "wb") as f:
+            pickle.dump(stats, f)
+
+        # with gzip.open(filename, 'w', compresslevel=5) as f:
             # pickle.dump(winner_net, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open(filename, "wb") as f:
             pickle.dump(winner, f)
 
             best_solution_sim = Simulation(
@@ -317,18 +326,17 @@ class NeatAlgorithm:
         if self.throw_type == "multi-target":
             node_names = {
                 -5 - self.number_of_links * 2: "desired ball x cor",
-                -4 - self.number_of_links * 2: "ball x cor",
-                -3 - self.number_of_links * 2: "ball y cor",
-                -2 - self.number_of_links * 2: "ball x velocity",
-                -1 - self.number_of_links * 2: "ball y velocity",
+                -4 - self.number_of_links * 2: "ball y velocity",
+                -3 - self.number_of_links * 2: "ball x velocity",
+                -2 - self.number_of_links * 2: "ball y cor",
+                -1 - self.number_of_links * 2: "ball x cor",
             }
-
         else:
             node_names = {
-                -4 - self.number_of_links * 2: "ball x cor",
-                -3 - self.number_of_links * 2: "ball y cor",
-                -2 - self.number_of_links * 2: "ball x velocity",
-                -1 - self.number_of_links * 2: "ball y velocity",
+                -4 - self.number_of_links * 2: "ball y velocity",
+                -3 - self.number_of_links * 2: "ball x velocity",
+                -2 - self.number_of_links * 2: "ball y cor",
+                -1 - self.number_of_links * 2: "ball x cor",
             }
         i = - self.number_of_links * 2
         j = 1
@@ -348,6 +356,14 @@ class NeatAlgorithm:
             node_names[_] = f"motor torque {j}"
             i += 1
             j += 1
+        if self.throw_type == "gimmick":
+            node_names[self.number_of_links] = "start moving timestamp"
+        # Timestamp of robotic gripper opening is always the last output
+        if self.gripper_type == "robotic" and not self.throw_type == "gimmick":
+            node_names[self.number_of_links] = "gripper opening timestamp"
+        if self.gripper_type == "robotic" and self.throw_type == "gimmick":
+            node_names[self.number_of_links + 1] = "gripper opening timestamp"
+
         # for key in node_names:
         #     print(f"{key}: {node_names[key]}")
 
