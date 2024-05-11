@@ -281,7 +281,8 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "Num of interpolation angles: ",
-                          "'robotic' or 'stiff' gripper: ", "Title: ",  "'target', 'far', 'gimmick' throw: "]
+                          "'robotic' or 'stiff' gripper: ", "Title: ",  "'target', 'far', 'gimmick',\n "
+                                                                        "'super-gimmick' throw: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -459,6 +460,11 @@ class Menu:
         if errors_detected:
             return
         else:
+            # Correcting max fitness values for gimmick and super-gimmick types of throw
+            if fitness_params["throw_type"] == "gimmick":
+                fitness_params["max_fitness"] = 1418.75
+            if fitness_params["throw_type"] == "super-gimmick":
+                fitness_params["max_fitness"] = 1220
             self.queue.put({"fitness_params": fitness_params, "ga_params": ga_params})
             self.close_window(self.new_train_window)
         #

@@ -134,7 +134,7 @@ class NeatAlgorithm:
             # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
             # Fitness function for throwing the ball at a target x coordinate
-            if self.throw_type == "target" or self.throw_type == "gimmick":
+            if self.throw_type in ("target", "gimmick", "super-gimmick"):
                 simulation = Simulation(
                     net=net,
                     ui_flag=False,
@@ -356,12 +356,12 @@ class NeatAlgorithm:
             node_names[_] = f"motor torque {j}"
             i += 1
             j += 1
-        if self.throw_type == "gimmick":
+        if self.throw_type in ("gimmick", "super-gimmick"):
             node_names[self.number_of_links] = "start moving timestamp"
         # Timestamp of robotic gripper opening is always the last output
-        if self.gripper_type == "robotic" and not self.throw_type == "gimmick":
+        if self.gripper_type == "robotic" and not self.throw_type in ("gimmick", "super-gimmick"):
             node_names[self.number_of_links] = "gripper opening timestamp"
-        if self.gripper_type == "robotic" and self.throw_type == "gimmick":
+        if self.gripper_type == "robotic" and self.throw_type in ("gimmick", "super-gimmick"):
             node_names[self.number_of_links + 1] = "gripper opening timestamp"
 
         # for key in node_names:

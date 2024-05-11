@@ -354,7 +354,7 @@ class Menu:
         left_text_list = ["Num of movable links", "Target x cor: ", "Max fitness: ", "Distance weight: ",
                           "Time weight: ", "Work sum weight: ", "Collision penalty: ", "Wrong angle penalty: ",
                           "Num of training instances: ", "'robotic' or 'stiff' gripper: ",
-                          "Title: ", "'target', 'far',\n 'gimmick', 'multi-target' throw: "]
+                          "Title: ", "'target', 'far', 'gimmick',\n 'multi-target', 'super-gimmick' throw: "]
 
         left_label_list = [(tk.Label(self.new_train_window, text=left_text_list[i], font=("Consolas", 15, "bold"))
                             .grid(row=i+2, column=0))
@@ -558,14 +558,25 @@ class Menu:
                 "conn_delete_prob": neat_params["conn_delete_prob"],
             }
 
+            # Correcting max fitness values for gimmick and super-gimmick types of throw
+            if fitness_params["throw_type"] == "gimmick":
+                fitness_params["max_fitness"] = 1418.75
+            if fitness_params["throw_type"] == "super-gimmick":
+                fitness_params["max_fitness"] = 1220
+
             # To allow NEAT to learn up to desired generation
             if fitness_params["throw_type"] == "far":
                 modify_values["fitness_threshold"] = 1_000_000_000
+            # Correcting max fitness values for gimmick and super-gimmick types of throw
+            if fitness_params["throw_type"] == "gimmick":
+                modify_values["fitness_threshold"] = 1418.75
+            if fitness_params["throw_type"] == "super-gimmick":
+                modify_values["fitness_threshold"] = 1220
             # Adding output for gripper claws release timestamp
             if fitness_params["gripper_type"] == "robotic":
                 modify_values["num_outputs"] += 1
             # Adding output for timestamp of links starting to move
-            if fitness_params["throw_type"] == "gimmick":
+            if fitness_params["throw_type"] in ("gimmick", "super-gimmick"):
                 modify_values["num_outputs"] += 1
             # Adding input for target x cor in case of multi-target type of throw
             if fitness_params["throw_type"] == "multi-target":
@@ -648,14 +659,14 @@ class Menu:
             node_names[_] = f"motor torque {j}"
             i += 1
             j += 1
-        if self.solutions_file["throw_type"][self.highlighted] == "gimmick":
+        if self.solutions_file["throw_type"][self.highlighted] in ("gimmick", "super-gimmick"):
             node_names[number_of_links] = "start moving timestamp"
         # Timestamp of robotic gripper opening is always the last output
         if (self.solutions_file["gripper_type"][self.highlighted] == "robotic" and
-                not self.solutions_file["throw_type"][self.highlighted] == "gimmick"):
+                not self.solutions_file["throw_type"][self.highlighted] in ("gimmick", "super-gimmick")):
             node_names[number_of_links] = "gripper opening timestamp"
         if (self.solutions_file["gripper_type"][self.highlighted] == "robotic" and
-                self.solutions_file["throw_type"][self.highlighted] == "gimmick"):
+                self.solutions_file["throw_type"][self.highlighted] in ("gimmick", "super-gimmick")):
             node_names[number_of_links + 1] = "gripper opening timestamp"
 
         # Visualising the best net parameters

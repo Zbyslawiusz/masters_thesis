@@ -235,6 +235,79 @@ class Simulation:
             # Setting the correct target x_cor for the ball to hit
             self.x_cor = obst3.position[0] - (obst3.position[0] - obst8.position[0]) / 2
 
+        if self.throw_type == "super-gimmick":
+            offset = 600
+            self.first_link_x_cor = 200
+            wall_gap = 20  # Distance from the left wall to the first row of triangles
+            hgap = 70  # Horizontal gap between triangles
+            vgap = 50  # Vertical gap between rows of triangles
+            # Parameters of triangles
+            width = 100
+            height = 70
+            y_pos = 500  # Start height
+
+            obst1_h = 500
+            obst1_w = 10
+            obst1 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst1.position = (self.first_link_x_cor + offset,
+                              HEIGHT - GROUND_THICKNESS - obst1_h / 2)
+            obst1_shape = pymunk.Poly.create_box(obst1, (obst1_w, obst1_h))
+            obst1_shape.collision_type = OBSTACLE_COLLISION_TYPE
+            space.add(obst1, obst1_shape)
+
+            pos = [self.first_link_x_cor + offset + obst1_w + wall_gap + width/2, y_pos]
+            y_ = 0
+            for i in range(4):
+                if i % 2 == 0:
+                    x_ = 0
+                    j = 4
+                else:
+                    x_ = hgap/2 + width/2
+                    j = 3
+                for _ in range(j):
+                    triangle = pymunk.Body(body_type=pymunk.Body.STATIC)
+                    vs = [(pos[0] - width/2 + x_, pos[1] + height / 4 + y_),
+                          (pos[0] + width/2 + x_, pos[1] + height / 4 + y_),
+                          (pos[0] + x_, pos[1] - height * 3 / 4 + y_)]
+                    triangle_shape = pymunk.Poly(body=triangle, vertices=vs, radius=1)
+                    space.add(triangle, triangle_shape)
+                    x_ += hgap + width
+                y_ += vgap + height
+                print(y_)
+
+            obst2_h = 500
+            obst2_w = 10
+            obst2 = pymunk.Body(body_type=pymunk.Body.STATIC)
+            obst2.position = (self.first_link_x_cor + offset + obst1_w + obst2_w + 2 * wall_gap + 4 * width + 3 * hgap,
+                              HEIGHT - GROUND_THICKNESS - obst2_h / 2)
+            obst2_shape = pymunk.Poly.create_box(obst2, (obst2_w, obst2_h))
+            obst2_shape.collision_type = OBSTACLE_COLLISION_TYPE
+            space.add(obst2, obst2_shape)
+
+            # Setting the correct target x_cor for the ball to hit
+            self.x_cor = self.first_link_x_cor + offset + obst1_w + wall_gap + 2.5 * width + 2 * hgap
+
+            # dynamic obstacle -----------------------------------------------------------------------------------------
+            length = 500
+            obst4 = pymunk.Body(100, pymunk.moment_for_box(mass=1, size=(length, 10)))
+            x = self.first_link_x_cor + offset + obst1_w + wall_gap + 2 * width + 1.5 * hgap
+            y = HEIGHT - GROUND_THICKNESS - obst1_h - 250
+            obst4.position = (x, y)
+            obst4_shape = pymunk.Poly.create_box(body=obst4, size=(length, 10))
+            obst4_shape.friction = 1.0
+
+            p = Vec2d(x, y)
+            b0 = space.static_body
+
+            # anchor joint
+            anchor_joint = pymunk.PivotJoint(b0, obst4, p)
+            anchor_joint.error_bias = 0
+            anchor_motor = pymunk.SimpleMotor(a=b0, b=obst4, rate=10)  # oryginalnie rate=2
+            anchor_motor.max_force = 1000000000  # oryginalnie 100000
+
+            space.add(obst4, obst4_shape, anchor_joint, anchor_motor)
+            # dynamic obstacle -----------------------------------------------------------------------------------------
+
         # Creating resting point for the manipulator
         stand = pymunk.Body(body_type=pymunk.Body.STATIC)
         stand.position = (self.first_link_x_cor - 50 - self.stand_width/2,
@@ -277,7 +350,7 @@ class Simulation:
         for link in manipulator.links[1:]:
             link["angle"] = -pi/2  # Subtracting pi/2 in case of horizontal manipulator creator
         # self.x_cor = 2500  # x Coordinate that the ball is supposed to hit
-        if self.throw_type in ("target", "gimmick", "multi-target"):
+        if self.throw_type in ("target", "gimmick", "multi-target", "super-gimmick"):
             registered_distance = 2_000_000  # Default value of distance, penalizes manipulator not doing anything
         elif self.throw_type == "far":
             registered_distance = -2_000_000
@@ -325,7 +398,7 @@ class Simulation:
                 ball_released = True
 
             if manipulator.ball_hit_the_ground and not hit_ground:
-                if self.throw_type in ("target", "gimmick", "multi-target"):
+                if self.throw_type in ("target", "gimmick", "multi-target", "super-gimmick"):
                     registered_distance = abs(ball_xcor - self.x_cor)
                 elif self.throw_type == "far":
                     registered_distance = ball_xcor
@@ -341,7 +414,7 @@ class Simulation:
             # Calculating error sum used for first net activation
             current_angles = [link["angle"] for link in manipulator.links[1:]]
             previous_angles = [link["previous_angle"] for link in manipulator.links[1:]]
-            print(f"Throw type: {self.throw_type}")
+            # print(f"Throw type: {self.throw_type}")
             if self.throw_type == "multi-target":
                 error = [self.x_cor, ball_xcor, ball_ycor, ball_xvel, ball_yvel] + current_angles + previous_angles
             else:
@@ -359,13 +432,16 @@ class Simulation:
             i = 0
             for link in manipulator.links[1:]:
                 traversed_angle = abs(link["angle"] - link["previous_angle"])
-                if self.throw_type == "gimmick" and self.gripper_type == "robotic":
+                # Allowing the manipulator to move after certain amount of time ----------------------------------------
+                if ((self.throw_type == "gimmick" or self.throw_type == "super-gimmick")
+                        and self.gripper_type == "robotic"):
                     # The second to last value of the solution is a timestamp of links starting to move
                     if elapsed_time > solution[-2]:
                         force = solution[i]
                     else:
                         force = 0
-                elif self.throw_type == "gimmick" and self.gripper_type == "stiff":
+                elif ((self.throw_type == "gimmick" or self.throw_type == "super-gimmick")
+                      and self.gripper_type == "stiff"):
                     # The last value of the solution is a timestamp of links starting to move
                     if elapsed_time > solution[-1]:
                         force = solution[i]
@@ -373,6 +449,7 @@ class Simulation:
                         force = 0
                 else:
                     force = solution[i]
+                # Allowing the manipulator to move after certain amount of time ----------------------------------------
                 if force > self.max_force:
                     force = self.max_force
                 elif force < -self.max_force:

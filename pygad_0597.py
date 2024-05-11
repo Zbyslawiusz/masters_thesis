@@ -89,12 +89,12 @@ class GeneticAlgorithm:
         # GA parameters
         if self.gripper_type == "stiff":
             self.num_genes = self.number_of_links * self.interpolation * 2  # Angles and their timestamps
-            if self.throw_type == "gimmick":
+            if self.throw_type in ("gimmick", "super-gimmick"):
                 self.num_genes += 1
         elif self.gripper_type == "robotic":
             # Angles and their timestamps and timestamp of gripper opening its claws
             self.num_genes = self.number_of_links * self.interpolation * 2 + 1
-            if self.throw_type == "gimmick":
+            if self.throw_type in ("gimmick", "super-gimmick"):
                 self.num_genes += 1
         self.last_fitness = 0
         self.ga_instance = pygad.GA(num_generations=self.num_generations,
@@ -269,7 +269,7 @@ class GeneticAlgorithm:
 
     def fitness_func(self, ga_instance, solution, solution_idx):
 
-        nuke_fitness = False
+        # nuke_fitness = False
 
         simulation = Simulation(
             genetic_solution=solution,
@@ -286,7 +286,7 @@ class GeneticAlgorithm:
         # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
         # Fitness function for throwing the ball at target x coordinate
-        if self.throw_type == "target" or self.throw_type == "gimmick":
+        if self.throw_type in ("target", "gimmick", "super-gimmick"):
             fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
                                           self.time_value * simulation.error_sum[2] +
                                           self.work_sum_value * simulation.error_sum[3])
@@ -315,8 +315,8 @@ class GeneticAlgorithm:
             #     if solution[i] > pi/2 or solution[i] < -pi/2:
             #         fitness -= self.penalty_angle  # Applying penalty for incorrect desired link angles
 
-        if nuke_fitness:
-            fitness = 0
+        # if nuke_fitness:
+        #     fitness = 0
 
         elif self.throw_type != "far":
             if fitness >= 0.9 * self.max_fitness and not self.is_set:  # Acquiring the acceptable solution
