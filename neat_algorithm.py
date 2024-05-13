@@ -55,7 +55,7 @@ class NeatAlgorithm:
             for value in self.searched_values:
                 self.search_function(line, value)
 
-        self.max_fitness = int(self.values[0])
+        self.max_fitness = int(float(self.values[0]))
         self.target_xcor = fitness_params["target_xcor"]
         self.number_of_links = fitness_params["Num of movable links"]
         self.gripper_type = fitness_params["gripper_type"]
@@ -67,6 +67,7 @@ class NeatAlgorithm:
         self.num_generations = neat_params["num_generations"]
         self.training_finished = False
         self.multi_targets = [1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000]
+        # self.multi_targets = [_ for _ in range(1500, 2600, 100)]
 
         # For measuring purposes
         self.t0 = time.time()
@@ -191,15 +192,17 @@ class NeatAlgorithm:
                     #     fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
 
                     fitnesses.append(fitness)
-                    print(f"Fitness of {target} target: {fitness}")
+                    # print(f"Fitness of {target} target: {fitness}")
 
                 # Calculating mean square of all simulation fitness values
-                genome.fitness = 0
+                total_fitness = 0
                 for _ in fitnesses:
-                    # genome.fitness += _**2
-                    genome.fitness += _
-                genome.fitness /= len(fitnesses)
-                # genome.fitness **= 0.5
+                    total_fitness += _**2
+                    # total_fitness += _
+                genome.fitness = total_fitness**0.5
+                genome.fitness *= -1
+                # print(f"Total fitness {total_fitness}/ len(fitness) {len(fitnesses)}")
+                # genome.fitness = total_fitness / len(fitnesses)
                 print(f"Genome fitness: {genome.fitness}")
 
             # Monitoring best fitness
@@ -323,13 +326,13 @@ class NeatAlgorithm:
         # Display the winning genome.
         print('\nBest genome:\n{!s}'.format(winner))
 
-        if self.throw_type == "multi-target":
+        if self.throw_type == "multi-target":  # "desired ball x cor"
             node_names = {
-                -5 - self.number_of_links * 2: "desired ball x cor",
-                -4 - self.number_of_links * 2: "ball y velocity",
-                -3 - self.number_of_links * 2: "ball x velocity",
-                -2 - self.number_of_links * 2: "ball y cor",
-                -1 - self.number_of_links * 2: "ball x cor",
+                -5 - self.number_of_links * 2: "ball y velocity",
+                -4 - self.number_of_links * 2: "ball x velocity",
+                -3 - self.number_of_links * 2: "ball y cor",
+                -2 - self.number_of_links * 2: "ball x cor",
+                -1 - self.number_of_links * 2: "desired ball x cor",
             }
         else:
             node_names = {

@@ -285,6 +285,7 @@ class GeneticAlgorithm:
         # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
         # DOUBLE, BOOLEAN VALUE, DOUBLE, DOUBLE
 
+        fitness = -1_000_000_000
         # Fitness function for throwing the ball at target x coordinate
         if self.throw_type in ("target", "gimmick", "super-gimmick"):
             fitness = self.max_fitness - (self.distance_value * simulation.error_sum[0] +
@@ -318,7 +319,7 @@ class GeneticAlgorithm:
         # if nuke_fitness:
         #     fitness = 0
 
-        elif self.throw_type != "far":
+        if self.throw_type != "far":
             if fitness >= 0.9 * self.max_fitness and not self.is_set:  # Acquiring the acceptable solution
                 self.is_set = True
                 self.minimum_desired_fitness_reached = True

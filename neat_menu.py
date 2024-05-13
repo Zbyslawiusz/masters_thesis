@@ -581,6 +581,8 @@ class Menu:
             # Adding input for target x cor in case of multi-target type of throw
             if fitness_params["throw_type"] == "multi-target":
                 modify_values["num_inputs"] += 1
+                modify_values["fitness_threshold"] = 0
+                fitness_params["max_fitness"] = 0
 
             timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
             unique_name = uuid.uuid4().hex

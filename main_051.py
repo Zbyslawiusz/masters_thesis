@@ -420,7 +420,13 @@ class Simulation:
         pick_time = self.interval
 
         # Font for drawing simulation parameters on the pygame screen
-        my_font = pygame.font.SysFont("Arial", 30)
+        # my_font = pygame.font.SysFont("Arial", 30)
+        font = pygame.font.Font("freesansbold.ttf", 16)
+        white = (255, 255, 255)
+        black = (0, 0, 0)
+        text = font.render("Text", True, white, black)
+        text_rect = text.get_rect()
+        text_rect.center = (200, 100)
 
         # Main loop ----------------------------------------------------------------------------------------------------
         while running:
@@ -523,13 +529,25 @@ class Simulation:
                 # Draw stuff
                 space.debug_draw(draw_options)
                 pygame.display.flip()
+                # pygame.display.update()
                 clock.tick(fps * 0.25)  # For slow motion
                 # print(link_ang_vel)
                 # Print simulation parameters to the screen
-                text_surface = my_font.render(f"Ball x cor: {ball_xcor}\n"
-                                              f"Ball y cor: {manipulator.ball.position[1]}\n"
-                                              f"Elapsed time: {elapsed_time}", False, (220, 0, 0))
-                screen.blit(text_surface, (0, 0))
+                # text_surface = my_font.render(f"Ball x cor: {ball_xcor}\n"
+                #                               f"Ball y cor: {manipulator.ball.position[1]}\n"
+                #                               f"Elapsed time: {elapsed_time}", False, (220, 0, 0))
+                # screen.blit(text_surface, (0, 0))
+                # Display some text
+                font = pygame.font.Font(None, 16)
+                text = """LMB: Create ball
+LMB + Shift: Create many balls
+RMB: Drag to create wall, release to finish
+Space: Pause physics simulation"""
+                y = 5
+                for line in text.splitlines():
+                    text = font.render(line, True, pygame.Color("black"))
+                    screen.blit(text, (5, y))
+                    y += 10
 
                 # Making screenshots of the pymunk window
                 if self.make_pics and elapsed_time >= pick_time:

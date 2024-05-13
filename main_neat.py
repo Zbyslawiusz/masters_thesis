@@ -402,7 +402,7 @@ class Simulation:
                     registered_distance = abs(ball_xcor - self.x_cor)
                 elif self.throw_type == "far":
                     registered_distance = ball_xcor
-                # print(registered_distance)
+                print(self.throw_type)
                 hit_ground = True
 
             # print(f"Ball's x, y coordinates: {manipulator.ball.position[0]}, {manipulator.ball.position[1]}\n"
@@ -525,34 +525,22 @@ class Simulation:
             if hit_ground and not finished:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
-                if ui_flag:
-                    print(f"SIMULATION ERROR IN MAIN --- HIT GROUND"
-                          f"\nDistance error: {registered_distance}.\n"
-                          f"Elapsed time: {elapsed_time}.\n"
-                          f"Total work: {work_sum}.")
-                else:
-                    print(f"SIMULATION ERROR IN MAIN --- HIT GROUND"
-                          f"\nDistance error: {registered_distance}.\n"
-                          f"Elapsed time: {elapsed_time}.\n"
-                          f"Total work: {work_sum}.")
-                    return self.error_sum
+                # print(f"SIMULATION ERROR IN MAIN --- HIT GROUND"
+                #       f"\nDistance error: {registered_distance}.\n"
+                #       f"Elapsed time: {elapsed_time}.\n"
+                #       f"Total work: {work_sum}.")
+                return self.error_sum
                 # return self.error_sum
 
             # Timeout --------------------------------------------------------------------------------------------------
             elif elapsed_time > 7 and not finished:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
-                if ui_flag:
-                    print(f"SIMULATION ERROR IN MAIN --- TIMEOUT"
-                          f"\nDistance error: {registered_distance}.\n"
-                          f"Elapsed time: {elapsed_time}.\n"
-                          f"Total work: {work_sum}.")
-                else:
-                    print(f"SIMULATION ERROR IN MAIN --- TIMEOUT"
-                          f"\nDistance error: {registered_distance}.\n"
-                          f"Elapsed time: {elapsed_time}.\n"
-                          f"Total work: {work_sum}.")
-                    return self.error_sum
+                # print(f"SIMULATION ERROR IN MAIN --- TIMEOUT"
+                #       f"\nDistance error: {registered_distance}.\n"
+                #       f"Elapsed time: {elapsed_time}.\n"
+                #       f"Total work: {work_sum}.")
+                return self.error_sum
                 # return self.error_sum
 
         # if __name__ == "__simulation__":
