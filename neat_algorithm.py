@@ -3,18 +3,14 @@ import os
 import neat
 import visualize
 import pickle
-import gzip
 import uuid
 import pandas as pd
 import tkinter as tk
 import time
 from multiprocessing import Lock
+import matplotlib.pyplot as plt
 
 from main_neat import Simulation
-
-# 2-input XOR inputs and expected outputs.
-# xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
-# xor_outputs = [(0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
 
 class NeatAlgorithm:
@@ -62,7 +58,7 @@ class NeatAlgorithm:
         self.sol_per_pop = neat_params["sol_per_pop"]  # Starting population
         self.neat_amount = fitness_params["Num_of_training_instances"]
         self.activation_type = neat_params["activation_type"]
-        self.num_hidden = neat_params["num_hidden"]
+        self.num_hidden = neat_params["num_hidden"]  # Specifies amount of hidden NODES not LAYERS
 
         self.num_generations = neat_params["num_generations"]
         self.training_finished = False
@@ -79,23 +75,33 @@ class NeatAlgorithm:
         self.acceptable_generation = 0  # Generation of the acceptable fitness
         self.minimum_desired_fitness_reached = False
         self.acceptable_net = None  # Stores the net that achieved acceptable fitness
-        self.best_fitness = 0
+        self.best_fitness = -100_000_000_000
         self.acceptable_fitness = False  # False means acceptable solution has not been reached
         self.is_set = False  # Whether the acceptable fitness has been reached or not
         # List of fitness values
         self.fitness_change = []
+        self.elapsed_time = 0  # Total training time
 
         self.acceptable_solution_distance = 0
         self.acceptable_solution_time_of_throw = 0
         self.acceptable_solution_total_work_sum = 0
 
-        filename = f"{uuid.uuid4().hex}"
+        # Filenames for saving results
+        self.filename = f"{uuid.uuid4().hex}"
         timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
-        self.acceptable_filename = "{0}/{1}-{2}-acceptable".format(self.directory, filename, timestring)
+        self.best_filename = "{0}/{1}-{2}".format(self.directory, self.filename, timestring)
+        self.acceptable_filename = "{0}/{1}-{2}-acceptable".format(self.directory, self.filename, timestring)
+        self.stats_name = "{0}-stats".format(self.best_filename)
+
+        self.finish_and_save = False  # Flag that signals premature training ending
+        self.stop = False
+
+        self.fig, self.ax = plt.subplots()
+        # plt.ion()  # Interactive mode on
 
     def neat_start(self, neat_queue):
         self.queue = neat_queue
-        # tkinter window START
+        # tkinter window START -----------------------------------------------------------------------------------------
         self.progress_window = tk.Tk()
         self.progress_window.title("NEAT training progress")
         self.progress_window.config(padx=25, pady=25, bg="white")
@@ -103,16 +109,26 @@ class NeatAlgorithm:
         self.progress_label = tk.Label(self.progress_window, text="NEAT training in progress",
                                        font=("Consolas", 30, "bold"),
                                        bg="red")
-        self.progress_label.grid(row=0, column=0)
+        # self.progress_label.grid(row=0, column=0)
+        self.progress_label.pack()
 
         self.num_of_generation_label = tk.Label(self.progress_window, text="Current generation: ",
                                                 font=("Consolas", 15, "bold"))
-        self.num_of_generation_label.grid(row=1, column=0)
+        # self.num_of_generation_label.grid(row=1, column=0)
+        self.num_of_generation_label.pack()
 
         self.fitness_label = tk.Label(self.progress_window, text="Highest achieved fitness so far: ",
                                       font=("Consolas", 15, "bold"))
-        self.fitness_label.grid(row=2, column=0)
-        # tkinter window STOP
+        # self.fitness_label.grid(row=2, column=0)
+        self.fitness_label.pack()
+
+        self.finish_button = (tk.Button(text="FINISH AND SAVE NETWORK",
+                                        font=("Consolas", 15, "bold"),
+                                        command=self.finish_training))
+        # self.finish_button.grid(row=3, column=0)
+        self.finish_button.pack()
+
+        # tkinter window STOP ------------------------------------------------------------------------------------------
         # Determine path to configuration file. This path manipulation is
         # here so that the script will run successfully regardless of the
         # current working directory.
@@ -122,13 +138,12 @@ class NeatAlgorithm:
         # print("AAAAAAAAAAAAAAAAA")
         self.run(config_path)
 
+    def finish_training(self):
+        self.finish_and_save = True
+
     def eval_genomes(self, genomes, config):
         for genome_id, genome in genomes:
             net = neat.nn.FeedForwardNetwork.create(genome, config)
-            # for xi, xo in zip(xor_inputs, xor_outputs):
-            #     output = net.activate(xi)
-            #     genome.fitness -= (output[0] - xo[0]) ** 2
-            # nuke_fitness = False
 
             # fitness = 1.0 / (error_sum + 0.0001)
             # return [registered_distance, hit_obstacle, elapsed_time, work_sum]
@@ -192,7 +207,7 @@ class NeatAlgorithm:
                     #     fitness -= self.penalty_col  # Applying penalty for hitting the obstacle
 
                     fitnesses.append(fitness)
-                    # print(f"Fitness of {target} target: {fitness}")
+                    print(f"Fitness of {target} target: {fitness}")
 
                 # Calculating mean square of all simulation fitness values
                 total_fitness = 0
@@ -201,12 +216,18 @@ class NeatAlgorithm:
                     # total_fitness += _
                 genome.fitness = total_fitness**0.5
                 genome.fitness *= -1
-                # print(f"Total fitness {total_fitness}/ len(fitness) {len(fitnesses)}")
+                # print(f"Total fitness {genome.fitness}/ len(fitness) {len(fitnesses)}")
                 # genome.fitness = total_fitness / len(fitnesses)
                 print(f"Genome fitness: {genome.fitness}")
 
+            # Ending simulation on demand
+            if self.stop:
+                self.misc(winner=genome)
+                return
+
             # Monitoring best fitness
-            if genome.fitness > self.best_fitness:
+            if genome.fitness >= self.best_fitness:
+                self.best_genome = genome  # Stores the current best net
                 self.best_fitness = genome.fitness  # Acquiring best fitness value
                 self.t2 = time.time()  # Acquiring best fitness time
                 self.best_generation = self.generation  # Acquiring best fitness generation
@@ -219,7 +240,7 @@ class NeatAlgorithm:
                 #       f"-----------------------------------------------------------------------------------------\n")
 
             # Monitoring acceptable fitness
-            elif self.throw_type != "far":
+            if self.throw_type != "far":
                 if genome.fitness > 0.9 * self.max_fitness and not self.is_set:
                     self.is_set = True
                     self.acceptable_fitness = genome.fitness  # Acquiring acceptable fitness value
@@ -244,8 +265,16 @@ class NeatAlgorithm:
                     self.acceptable_solution_total_work_sum = simulation.error_sum[3]
 
             if self.iteration % self.sol_per_pop == 0:
-                self.generation += 1  # Keeping track of the number of generations
-                self.fitness_change.append(self.best_fitness)
+                if (self.generation + 1) <= self.num_generations:
+                    self.generation += 1  # Keeping track of the number of generations
+                    self.fitness_change.append(self.best_fitness)
+                    # Updating plot
+                    self.ax.clear()
+                    self.ax.plot(self.fitness_change)
+                    self.ax.set_xlabel("Generation")
+                    self.ax.set_ylabel("Value")
+                    plt.draw()
+                    plt.pause(0.001)
 
             # Displayed in training progress window
             self.num_of_generation_label.config(text=f"Current generation: {self.generation}")
@@ -257,43 +286,60 @@ class NeatAlgorithm:
 
             self.iteration += 1
 
+            # Ending training on demand and saving best network so far
+            if self.finish_and_save and self.generation > 1 and not self.stop:
+                self.stop = True  # Stops recursion of course
+                self.elapsed_time = time.time() - self.t0  # Total time of training
+                self.misc(winner=self.best_genome)
+                return
+
     def run(self, config_file):
         # print("BBBBBBBBBBBBBB")
         # Load configuration.
-        config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
-                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                             config_file)
+        self.config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                  neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                  config_file)
 
         # Create the population, which is the top-level object for a NEAT run.
-        p = neat.Population(config)
+        p = neat.Population(self.config)
 
         # Add a stdout reporter to show progress in the terminal.
         p.add_reporter(neat.StdOutReporter(True))
-        stats = neat.StatisticsReporter()
-        p.add_reporter(stats)
-        p.add_reporter(neat.Checkpointer(5))
+        self.stats = neat.StatisticsReporter()
+        p.add_reporter(self.stats)
+        p.add_reporter(neat.Checkpointer(generation_interval=1000))
 
-        # Run for up to 300 generations.
-        winner = p.run(self.eval_genomes, self.num_generations)
+        # Run for a set amount of generations.
+        try:
+            winner = p.run(self.eval_genomes, self.num_generations)
+        except TypeError:
+            return
+        # Once training finished
+        self.elapsed_time = time.time() - self.t0
 
+        self.misc(winner=winner)
+
+        # --------------------------------------------------------------------------------------------------------------
+
+    def misc(self, winner):
+        """Takes care of post-training clarity of data, saving it to file etc."""
         # Display the winning genome.
-        elapsed_time = time.time() - self.t0
-
         print("\nBest genome:\n{!s}".format(winner))
 
-        winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
-        filename = f"{uuid.uuid4().hex}"
-        timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
-        filename = "{0}/{1}-{2}".format(self.directory, filename, timestring)
-
-        stats_name = "{0}-stats".format(filename)
-        with open(stats_name, "wb") as f:
-            pickle.dump(stats, f)
+        winner_net = neat.nn.FeedForwardNetwork.create(winner, self.config)
+        # filename = f"{uuid.uuid4().hex}"
+        # timestring = time.strftime("%Y-%m-%d---%H-%M-%S")
+        # filename = "{0}/{1}-{2}".format(self.directory, filename, timestring)
+        #
+        # stats_name = "{0}-stats".format(filename)
+        # Save stats
+        with open(self.stats_name, "wb") as f:
+            pickle.dump(self.stats, f)
 
         # with gzip.open(filename, 'w', compresslevel=5) as f:
             # pickle.dump(winner_net, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-        with open(filename, "wb") as f:
+        # Save net
+        with open(self.best_filename, "wb") as f:
             pickle.dump(winner, f)
 
             best_solution_sim = Simulation(
@@ -315,13 +361,6 @@ class NeatAlgorithm:
         #       f"Time of throw: {best_solution_sim.error_sum[2]}\n"
         #       f"Total work sum: {best_solution_sim.error_sum[3]}\n"
         #       f"-----------------------------------------------------------------------------------------\n")
-
-        # Show output of the most fit genome against training data.
-        # print('\nOutput:')
-        # winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
-        # for xi, xo in zip(xor_inputs, xor_outputs):
-        #     output = winner_net.activate(xi)
-        #     print("input {!r}, expected output {!r}, got {!r}".format(xi, xo, output))
 
         # Display the winning genome.
         print('\nBest genome:\n{!s}'.format(winner))
@@ -370,14 +409,10 @@ class NeatAlgorithm:
         # for key in node_names:
         #     print(f"{key}: {node_names[key]}")
 
-        visualize.draw_net(config, winner, True, node_names=node_names)
+        visualize.draw_net(self.config, winner, True, node_names=node_names)
         # visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
-        visualize.plot_stats(stats, ylog=False, view=True)
-        visualize.plot_species(stats, view=True)
-
-        # p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-4')
-        # p = neat.Checkpointer.restore_checkpoint('./neat_checkpoints/neat-checkpoint-4')
-        # p.run(eval_genomes, 10)
+        visualize.plot_stats(self.stats, ylog=False, view=True)
+        visualize.plot_species(self.stats, view=True)
 
         if self.t1 != False:  # If acceptable fitness has been reached
             minimum_time = round(self.t1 - self.t0)
@@ -395,8 +430,8 @@ class NeatAlgorithm:
                 "throw_type": [self.throw_type],
                 "Num of movable links": [self.number_of_links],
                 "target_xcor": [self.target_xcor],
-                "Elapsed time": [elapsed_time],
-                "Best trained network": [filename],
+                "Elapsed time": [self.elapsed_time],
+                "Best trained network": [self.filename],
                 "Best solution time": [self.t2 - self.t0],
                 "Fitness value of the best solution": [self.best_fitness],
                 "Generation of the best solution": [self.best_generation],
@@ -420,7 +455,7 @@ class NeatAlgorithm:
                 "fitness_change": [self.fitness_change],  # List of all recorded genome fitness values
                 "Num_of_training_instances": [self.neat_amount],  # How many NEATs were trained at once
                 "gripper_type": [self.gripper_type],
-                "net_path": [filename],  # Path to the net with the best solution
+                "net_path": [self.best_filename],  # Path to the net with the best solution
                 "acceptable_net_path": [self.acceptable_filename],  # Path to the net with acceptable solution
                 "activation_type": [self.activation_type],
                 "num_hidden": [self.num_hidden],
@@ -474,8 +509,11 @@ class NeatAlgorithm:
         )
         current_settings.to_json("settings_neat.json")
 
-        self.training_finished = True  # signaling to main menu that training is completed
+        self.training_finished = True  # Signaling to neat menu that training is completed
         self.queue.put("FINISHED")
+        return
+
+        # --------------------------------------------------------------------------------------------------------------
 
         # Once training is completed
         # self.progress_label.config(text="GA training finished", bg="green")
@@ -488,6 +526,8 @@ class NeatAlgorithm:
         # self.progress_window.mainloop()
 
     def search_function(self, line, value):
+        """I only use it once and I don't even have to use it here but that didn't prevent me from wasting 2 hours
+         figuring this out"""
         if line.replace(" ", "")[:len(value)] == value:
             value = line.replace(" ", "")[len(value) + 1:-1]
             self.values.append(value)

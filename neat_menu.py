@@ -243,8 +243,11 @@ class Menu:
         # best_solution = self.solutions_file["Best solution"][self.highlighted][1:-1].split(sep=",")
         # best_solution = [float(_) for _ in best_solution]
         net_path = self.solutions_file["net_path"][self.highlighted]
+        # print(net_path)
         config_directory = os.path.dirname(net_path)
+        # print(config_directory)
         config_path = os.path.join(config_directory, "config")
+        # print(config_path)
         config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                              neat.DefaultSpeciesSet, neat.DefaultStagnation,
                              config_path)
@@ -258,7 +261,7 @@ class Menu:
         print(type(self.solutions_file["Fitness value of the acceptable solution"][self.highlighted]))
         if (self.solutions_file["Fitness value of the acceptable solution"][self.highlighted] != False
             and self.solutions_file["throw_type"][self.highlighted] != "far"
-                and self.solutions_file["Acceptable solution time of throw"][self.highlighted] != 0):
+                and self.solutions_file["Acceptable solution time"][self.highlighted] != False):
             # with gzip.open(net_path) as f:
             # with gzip.open(net_path, "rb") as f:
             #     net = pickle.load(f)
@@ -266,19 +269,36 @@ class Menu:
                 net = pickle.load(f)
             neat_net = neat.nn.FeedForwardNetwork.create(net, config)
 
-            print(f"Acceptable solution time of throw: "
-                  f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
-            minimum_solution_sim = Simulation(
-                net=neat_net,
-                ui_flag=True,
-                number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
-                target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
-                gripper=self.solutions_file["gripper_type"][self.highlighted],
-                time_of_throw=float(self.solutions_file["Acceptable solution time of throw"][self.highlighted]),
-                picks_or_not=picks,
-                sim_type="acceptable",
-                throw_type=self.solutions_file["throw_type"][self.highlighted]
-            )
+            if self.solutions_file["throw_type"][self.highlighted] == "multi-target":
+                targets = [1500, 2000, float(self.solutions_file["target_xcor"][self.highlighted]), 4000]
+                for x_cor in targets:
+                    print(f"Acceptable solution time of throw: "
+                          f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
+                    minimum_solution_sim = Simulation(
+                        net=neat_net,
+                        ui_flag=True,
+                        number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+                        target_xcor=x_cor,
+                        gripper=self.solutions_file["gripper_type"][self.highlighted],
+                        time_of_throw=float(self.solutions_file["Acceptable solution time of throw"][self.highlighted]),
+                        picks_or_not=picks,
+                        sim_type="acceptable",
+                        throw_type=self.solutions_file["throw_type"][self.highlighted]
+                    )
+            else:
+                print(f"Acceptable solution time of throw: "
+                      f"{self.solutions_file["Acceptable solution time of throw"][self.highlighted]}")
+                minimum_solution_sim = Simulation(
+                    net=neat_net,
+                    ui_flag=True,
+                    number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+                    target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+                    gripper=self.solutions_file["gripper_type"][self.highlighted],
+                    time_of_throw=float(self.solutions_file["Acceptable solution time of throw"][self.highlighted]),
+                    picks_or_not=picks,
+                    sim_type="acceptable",
+                    throw_type=self.solutions_file["throw_type"][self.highlighted]
+                )
 
             number_of_links = int(self.solutions_file["Num of movable links"][self.highlighted])
             self.visualise_net(config=config, net=net, stats=stats, number_of_links=number_of_links)
@@ -292,19 +312,36 @@ class Menu:
             net = pickle.load(f)
         neat_net = neat.nn.FeedForwardNetwork.create(net, config)
 
-        print(f"Best solution time of throw: "
-              f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
-        best_solution_sim = Simulation(
-            net=neat_net,
-            ui_flag=True,
-            number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
-            target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
-            gripper=self.solutions_file["gripper_type"][self.highlighted],
-            time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
-            picks_or_not=picks,
-            sim_type="best",
-            throw_type=self.solutions_file["throw_type"][self.highlighted]
-        )
+        if self.solutions_file["throw_type"][self.highlighted] == "multi-target":
+            targets = [1500, 2000, float(self.solutions_file["target_xcor"][self.highlighted]), 4000]
+            for x_cor in targets:
+                print(f"Best solution time of throw: "
+                      f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
+                best_solution_sim = Simulation(
+                    net=neat_net,
+                    ui_flag=True,
+                    number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+                    target_xcor=x_cor,
+                    gripper=self.solutions_file["gripper_type"][self.highlighted],
+                    time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
+                    picks_or_not=picks,
+                    sim_type="best",
+                    throw_type=self.solutions_file["throw_type"][self.highlighted]
+                )
+        else:
+            print(f"Best solution time of throw: "
+                  f"{self.solutions_file["Best solution time of throw"][self.highlighted]}")
+            best_solution_sim = Simulation(
+                net=neat_net,
+                ui_flag=True,
+                number_of_links=int(self.solutions_file["Num of movable links"][self.highlighted]),
+                target_xcor=float(self.solutions_file["target_xcor"][self.highlighted]),
+                gripper=self.solutions_file["gripper_type"][self.highlighted],
+                time_of_throw=float(self.solutions_file["Best solution time of throw"][self.highlighted]),
+                picks_or_not=picks,
+                sim_type="best",
+                throw_type=self.solutions_file["throw_type"][self.highlighted]
+            )
 
         number_of_links = int(self.solutions_file["Num of movable links"][self.highlighted])
         self.visualise_net(config=config, net=net, stats=stats, number_of_links=number_of_links)
@@ -329,7 +366,7 @@ class Menu:
         self.fitness_plot = plt.plot([_ for _ in range(len(fitness_change))], fitness_change)
         plt.clf()
         self.fitness_plot = plt.plot([_ for _ in range(len(fitness_change))], fitness_change)
-        plt.xlabel("Generations number")
+        plt.xlabel("Generation")
         plt.ylabel("Fitness value")
         plt.show()
 

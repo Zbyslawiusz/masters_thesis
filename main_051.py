@@ -32,6 +32,8 @@ class Simulation:
         self.filenames = []  # List storing filenames of screenshots if they're taken
         self.throw_type = throw_type
 
+        self.timeout = 7
+
         self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
@@ -609,7 +611,7 @@ Space: Pause physics simulation"""
                 # return self.error_sum
 
             # Timeout --------------------------------------------------------------------------------------------------
-            elif elapsed_time > 7 and not finished:
+            elif elapsed_time > self.timeout and not finished:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
                 if ui_flag:

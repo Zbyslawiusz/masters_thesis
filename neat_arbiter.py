@@ -32,7 +32,7 @@ if __name__ == '__main__':
                 process.terminate()
             break
 
-        val = data["fitness_params"]["Num_of_training_instances"]  # Amount of ga training instances
+        val = data["fitness_params"]["Num_of_training_instances"]  # Amount of NEAT training instances
         for _ in range(0, val):
             if _ == 0:
                 neat_queue_list = []  # Resetting the list with NEAT queues
