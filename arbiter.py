@@ -4,7 +4,7 @@ from pygad_0597 import GeneticAlgorithm
 from multiprocessing import Process, Queue
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 
     main_menu = Menu()
 
