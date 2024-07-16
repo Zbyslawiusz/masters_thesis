@@ -11,13 +11,11 @@ import pymunk.pygame_util
 from pymunk.vec2d import Vec2d
 from math import pi
 
-import numpy as np
-from scipy.interpolate import interp1d
+import decimal
 
 from manipulator_02 import Manipulator
 
-# WIDTH, HEIGHT = 1500, 1000
-WIDTH, HEIGHT = 3500, 1000
+WIDTH, HEIGHT = 4500, 1000
 
 LINK_COLLISION_TYPE = 0
 BALL_COLLISION_TYPE = 10
@@ -28,21 +26,20 @@ GROUND_THICKNESS = 50
 
 
 class Simulation:
-    def __init__(self, genetic_solution, ui_flag, number_of_links, target_xcor, interpolation,
-                 time_of_throw=1_000_000, picks_or_not=False, gripper="stiff", sim_type="best", throw_type="target"):
+    def __init__(self, net, ui_flag, number_of_links, target_xcor, time_of_throw=1_000_000,
+                 picks_or_not=False, gripper="stiff", sim_type="best", throw_type="target"):
 
         self.filenames = []  # List storing filenames of screenshots if they're taken
         self.throw_type = throw_type
 
-        self.timeout = 7
-
         self.max_force = 0.8  # Simulates physical constraints and safety limits of manipulator's servomotors
 
         self.x_cor = target_xcor  # x Coordinate that the ball is supposed to hit
-        self.control_values = genetic_solution  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
+        self.net = net  # ANGLE 1, MOMENTUM 1, ANGLE 2, MOMENTUM 2, ... for all links
         self.draw_ui = ui_flag  # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
 
         # To make screenshots or not
+        self.make_pics = False
         if picks_or_not:
             if throw_type == "far":
                 if time_of_throw > 1:
@@ -67,57 +64,12 @@ class Simulation:
                     print(f"Failed to delete {file_path}. Reason: {e}")
         else:
             self.make_pics = False
-            self.interval = 0
+            self.interval = 100_000_000
 
         self.number_of_links = number_of_links
-        self.interpolation = interpolation
-        self.interp_functions = []  # This list contains interpolated functions for individual links
         self.gripper_type = gripper
 
-        # for 1st link ANGLE 1, TIMESTAMP 1, ,,, ANGLE n, TIMESTAMP n, for all links
-        for i in range(0, self.number_of_links):
-            angles = []  # Contains desired angles for each link
-            timestamps = []  # Stores timestamps corresponding to desired angles for each link
-            values = self.control_values[i*self.interpolation*2:i*self.interpolation*2+self.interpolation*2]
-            j = 0
-            for _ in range(0, len(values)):
-                if _ % 2 != 0:  # Check every even number in genetic solution to get angle, odd numbers store timestamps
-                    if j == 0:
-                        timestamps.append(0)  # Timestamps start at time = 0
-                        j += 1
-                    else:
-                        # They have to be monotonically increasing
-                        timestamps.append(timestamps[j - 1] + abs(values[_]))
-                        j += 1
-
-                else:  # Even numbers store angles
-                    angles.append(values[_])
-
-            if len(timestamps) < 4:
-                timestamps.insert(0, 0)
-                angles.insert(0, 0)
-
-            for _ in range(0, len(timestamps)):
-                # Timestamps have to be monotonically increasing, if they're not scipy will crash
-                try:
-                    if timestamps[_+1] <= timestamps[_]:
-                        timestamps[_+1] = timestamps[_] + 0.001
-                except IndexError:
-                    pass
-                if angles[_] < -pi/2:  # Making sure angles are in a correct range
-                    angles[_] = -pi/2
-                elif angles[_] > pi/2:
-                    angles[_] = pi/2
-            # Simulation starts in time=0, therefore interpolation must include value range starting at 0 or scipy will crash
-            # if timestamps[0] > 0 or timestamps[0] < 0:
-            #     timestamps[0] = 0
-                # timestamps.insert(0, 0)
-                # angles.insert(0, 0)
-
-            # It is now possible to interpolate values separated into angles and timestamps
-            # print(f"np.array(timestamps): {np.array(timestamps)}, np.array(angles): {np.array(angles)}")
-            interp_func = interp1d(np.array(timestamps), np.array(angles), kind="cubic", fill_value="extrapolate")
-            self.interp_functions.append(interp_func)
+        self.timeout = 7
 
         self.first_link_length = 150
         self.firs_link_width = 20
@@ -125,8 +77,9 @@ class Simulation:
         self.first_link_x_cor = 600
         self.reduction = 0.95
         self.stand_width = 800
-        self.error_sum = []  # Distance from where the ball hit the ground to the intended x coordinate
-        self.simulation(self.control_values, self.draw_ui)
+        # Simulation error including distance between the point where ball hit the ground and its intended x coordinate
+        self.error_sum = []
+        self.simulation(self.net, self.draw_ui)
 
         # Moving the screenshot files to their designated folder
         if self.draw_ui and sim_type == "acceptable":
@@ -139,7 +92,7 @@ class Simulation:
 
     def collision(self, arbiter, space, data):
         """Callback function for the collision handler"""
-        print("COLLISION")
+        # print("COLLISION")
         return True
 
     def ball_with_trail(self, arbiter, space, data):
@@ -205,7 +158,7 @@ class Simulation:
         if self.throw_type == "gimmick":
             offset = 800
             width = 250
-            hgap = 40
+            gap = 40
             self.first_link_x_cor = 400
 
             obst1_h = 600
@@ -222,7 +175,7 @@ class Simulation:
             obst2_w = 10
             obst2 = pymunk.Body(body_type=pymunk.Body.STATIC)
             obst2.position = (self.first_link_x_cor + offset, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
-                              obst2_h / 2 - obst1_h - hgap)
+                              obst2_h / 2 - obst1_h - gap)
             obst2_shape = pymunk.Poly.create_box(obst2, (obst2_w, obst2_h))
             obst2_shape.collision_type = OBSTACLE_COLLISION_TYPE
             obst2_shape.friction = 1.0
@@ -241,12 +194,12 @@ class Simulation:
             # dynamic obstacle -----------------------------------------------------------------------------------------
             obst4 = pymunk.Body(100, pymunk.moment_for_box(mass=100, size=(200, 10)))
             obst4.position = (self.first_link_x_cor + offset + width/2, HEIGHT - GROUND_THICKNESS / 2 -
-                              GROUND_THICKNESS / 2 - obst1_h - hgap / 2)
+                              GROUND_THICKNESS / 2 - obst1_h - gap / 2)
             obst4_shape = pymunk.Poly.create_box(body=obst4, size=(200, 10))
             obst4_shape.friction = 1.0
 
             p = Vec2d(self.first_link_x_cor + offset + width/2, HEIGHT - GROUND_THICKNESS / 2 - GROUND_THICKNESS / 2 -
-                      obst1_h - hgap / 2)
+                      obst1_h - gap / 2)
             b0 = space.static_body
 
             # anchor joint
@@ -262,7 +215,7 @@ class Simulation:
             obst5_w = 150
             obst5 = pymunk.Body(body_type=pymunk.Body.STATIC)
             obst5.position = (self.first_link_x_cor + offset + obst1_w/2 + obst5_w/2,
-                              HEIGHT - GROUND_THICKNESS - obst1_h - hgap - 100)
+                              HEIGHT - GROUND_THICKNESS - obst1_h - gap - 100)
             obst5_shape = pymunk.Poly.create_box(obst5, (obst5_w, obst5_h))
             obst5_shape.collision_type = 256
             obst5_shape.friction = 1.0
@@ -297,7 +250,6 @@ class Simulation:
 
             # Setting the correct target x_cor for the ball to hit
             self.x_cor = obst3.position[0] - (obst3.position[0] - obst8.position[0]) / 2
-            # print(self.x_cor)
 
         if self.throw_type == "super-gimmick":
             offset = 600
@@ -353,7 +305,6 @@ class Simulation:
 
             # Setting the correct target x_cor for the ball to hit
             self.x_cor = self.first_link_x_cor + offset + obst1_w + wall_gap + 2.5 * width + 2 * hgap
-            # print(self.x_cor)
 
             # dynamic obstacle -----------------------------------------------------------------------------------------
             length = 500
@@ -378,11 +329,11 @@ class Simulation:
 
         # Creating resting point for the manipulator
         stand = pymunk.Body(body_type=pymunk.Body.STATIC)
-        stand.position = (self.first_link_x_cor - 50 - self.stand_width / 2,
-                          HEIGHT - GROUND_THICKNESS - self.first_link_length / 2 + self.firs_link_width / 2 - 4)
+        stand.position = (self.first_link_x_cor - 50 - self.stand_width/2,
+                          HEIGHT - GROUND_THICKNESS - self.first_link_length/2 + self.firs_link_width/2 - 4)
 
         stand_shape = pymunk.Poly.create_box(stand, (self.stand_width,
-                                                     self.first_link_length - self.firs_link_width / 2))
+                                                     self.first_link_length - self.firs_link_width/2))
         stand_shape.friction = 0.5
         stand_shape.collision_type = REST_COLLISION_TYPE
         space.add(stand, stand_shape)
@@ -393,7 +344,7 @@ class Simulation:
             mass=self.first_link_mass,
             reduction=self.reduction,
             x_cor=self.first_link_x_cor,
-            y_cor=(HEIGHT - GROUND_THICKNESS / 2) - GROUND_THICKNESS / 2 - (self.first_link_length / 2),
+            y_cor=(HEIGHT - GROUND_THICKNESS/2) - GROUND_THICKNESS/2 - (self.first_link_length/2),
             length=self.first_link_length,
             width=self.firs_link_width,
             space=space,
@@ -418,7 +369,7 @@ class Simulation:
         for link in manipulator.links[1:]:
             link["angle"] = -pi/2  # Subtracting pi/2 in case of horizontal manipulator creator
         # self.x_cor = 2500  # x Coordinate that the ball is supposed to hit
-        if self.throw_type in ("target", "gimmick", "super-gimmick"):
+        if self.throw_type in ("target", "gimmick", "multi-target", "super-gimmick"):
             registered_distance = 2_000_000  # Default value of distance, penalizes manipulator not doing anything
         elif self.throw_type == "far":
             registered_distance = -2_000_000
@@ -454,6 +405,9 @@ class Simulation:
 
             # State vector reading (current angles, current angular velocities of links) -------------------------------
             ball_xcor = manipulator.ball.position[0]
+            ball_ycor = manipulator.ball.position[1]
+            ball_xvel = manipulator.ball.velocity[0]
+            ball_yvel = manipulator.ball.velocity[1]
             manipulator.update_links()  # Update current and previous angle of every link ------------------------------
 
             # Detecting collisions with ground and resting point and others --------------------------------------------
@@ -471,63 +425,64 @@ class Simulation:
                 ball_released = True
 
             if manipulator.ball_hit_the_ground and not hit_ground:
-                if self.throw_type in ("target", "gimmick", "super-gimmick"):
+                if self.throw_type in ("target", "gimmick", "multi-target", "super-gimmick"):
                     registered_distance = abs(ball_xcor - self.x_cor)
                 elif self.throw_type == "far":
                     registered_distance = ball_xcor
-                # print(registered_distance)
+                # print(self.throw_type)
                 hit_ground = True
 
             # print(f"Ball's x, y coordinates: {manipulator.ball.position[0]}, {manipulator.ball.position[1]}\n"
             #       f"Ball's vx, vy velocity: {manipulator.ball.velocity[0]}, {manipulator.ball.velocity[1]}\n")
 
+            # ----------------------------------------------------------------------------------------------------------
+            # Activating the neural network based on current error every main loop iteration ---------------------------
+            # ----------------------------------------------------------------------------------------------------------
+            # Calculating error sum used for first net activation
+            current_angles = [link["angle"] for link in manipulator.links[1:]]
+            previous_angles = [link["previous_angle"] for link in manipulator.links[1:]]
+            # print(f"Throw type: {self.throw_type}")
+            if self.throw_type == "multi-target":
+                error = [self.x_cor, ball_xcor, ball_ycor, ball_xvel, ball_yvel] + current_angles + previous_angles
+            else:
+                error = [ball_xcor, ball_ycor, ball_xvel, ball_yvel] + current_angles + previous_angles
+
+            solution = self.net.activate(error)  # Acquiring solution from the neural network
+            # print(solution)
+            # ----------------------------------------------------------------------------------------------------------
+            # End of NEAT algorithm part of code -----------------------------------------------------------------------
+            # ----------------------------------------------------------------------------------------------------------
+
+            # for 1st link ANGLE 1, ... ANGLE n for all links
+
             # Moving the links -----------------------------------------------------------------------------------------
             i = 0
             for link in manipulator.links[1:]:
                 traversed_angle = abs(link["angle"] - link["previous_angle"])
-                # Passing the current timestamp to interpolated function in order to calculate current desired angle
-                if not ball_released:
-                    desired_angle = self.interp_functions[i](elapsed_time)
-                    link["desired angle"] = desired_angle
-                    # Correcting the angles for pymunk !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                    if desired_angle > 2 * pi:
-                        desired_angle = 0 + desired_angle % (2 * pi)
-                    elif desired_angle < -2 * pi:
-                        desired_angle = 0 - desired_angle % (2 * pi)
-                    else:
-                        pass
-                else:
-                    desired_angle = link["desired angle"]
-                    # print(f"Desired angle: {desired_angle}, elapsed time: {elapsed_time}")
-                if i == 0:
-                    error = desired_angle - link["angle"]
-                else:
-                    error = desired_angle - manipulator.links[i - 1]["angle"]
-                # print(f"Error: {error}")
                 # Allowing the manipulator to move after certain amount of time ----------------------------------------
                 if ((self.throw_type == "gimmick" or self.throw_type == "super-gimmick")
                         and self.gripper_type == "robotic"):
                     # The second to last value of the solution is a timestamp of links starting to move
-                    if elapsed_time > self.control_values[-2]:
-                        force = manipulator.pid_force_calculator(error=error, dt=dt)
+                    if elapsed_time > solution[-2]:
+                        force = solution[i]
                     else:
                         force = 0
                 elif ((self.throw_type == "gimmick" or self.throw_type == "super-gimmick")
                       and self.gripper_type == "stiff"):
                     # The last value of the solution is a timestamp of links starting to move
-                    if elapsed_time > self.control_values[-1]:
-                        force = manipulator.pid_force_calculator(error=error, dt=dt)
+                    if elapsed_time > solution[-1]:
+                        force = solution[i]
                     else:
                         force = 0
                 else:
-                    force = manipulator.pid_force_calculator(error=error, dt=dt)
+                    force = solution[i]
                 # Allowing the manipulator to move after certain amount of time ----------------------------------------
-                # force = manipulator.pid_force_calculator(error=error, dt=dt)
                 if force > self.max_force:
                     force = self.max_force
                 elif force < -self.max_force:
                     force = -self.max_force
                 work = abs(force * traversed_angle)
+                # work_per_link[i].append(float(work))
                 if len(work_per_link[i]) == 0:
                     work_per_link[i].append(float(work))
                 else:
@@ -536,8 +491,7 @@ class Simulation:
                 manipulator.simple_throw(force=force*10000, link=link)  # Moving the link
 
                 # The last value of the solution is a timestamp used to open the gripper claws
-                if self.gripper_type == "robotic" and elapsed_time >= self.control_values[-1] and not open_gripper:
-                # if self.gripper_type == "robotic" and elapsed_time >= 1 and not open_gripper:
+                if self.gripper_type == "robotic" and elapsed_time >= solution[-1] and not open_gripper:
                     manipulator.right_claw_motor.rate *= -10  # Reverse robotic claw motors and open the gripper
                     manipulator.left_claw_motor.rate *= -10
                     open_gripper = True
@@ -572,15 +526,15 @@ class Simulation:
                 # Draw stuff
                 space.debug_draw(draw_options)
                 pygame.display.flip()
-                # pygame.display.update()
                 clock.tick(fps * 0.25)  # For slow motion
+                # print(link_ang_vel)
 
                 # Making screenshots of the pymunk window
                 if self.make_pics and elapsed_time >= pick_time:
                     print("\n--------------------------------------------------------------------------------------\n"
                           "Screenshot Done"
                           "\n--------------------------------------------------------------------------------------\n")
-                    window = gw.getWindowsWithTitle("pygame window")[0]
+                    window = gw.getWindowsWithTitle('pygame window')[0]
                     # Capturing a specific region of the screen (left, top, right, bottom)
                     screenshot = ImageGrab.grab(bbox=(window.left,
                                                       window.top,
@@ -627,9 +581,11 @@ class Simulation:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
                 # if ui_flag:
-                #     print(f"\nDistance: {registered_distance}.\n"
-                #           f"Elapsed time: {elapsed_time}.\n"
-                #           f"Total work: {work_sum}.")
+                    # print(f"SIMULATION ERROR IN MAIN --- HIT GROUND"
+                    #       f"\nDistance error: {registered_distance}.\n"
+                    #       f"Elapsed time: {elapsed_time}.\n"
+                    #       f"Total work: {work_sum}.")
+                    # Set value, current value, distance error
                 if ui_flag:
                     print(f"[{self.x_cor}, {ball_xcor}, {abs(ball_xcor - self.x_cor)}]")
                     # Displaying work sum for each link
@@ -639,17 +595,18 @@ class Simulation:
                         data_series.append(series)
                     self.plot_multiple_series(data_series=data_series, dt=dt)
 
-                return
-                # return self.error_sum
+                return self.error_sum
 
             # Timeout --------------------------------------------------------------------------------------------------
             elif elapsed_time > self.timeout and not finished:
                 finished = True
                 self.error_sum = [registered_distance, hit_obstacle, elapsed_time, work_sum]
                 # if ui_flag:
-                #     print(f"\nDistance: {registered_distance}.\n"
-                #           f"Elapsed time: {elapsed_time}.\n"
-                #           f"Total work: {work_sum}.")
+                    # print(f"SIMULATION ERROR IN MAIN --- TIMEOUT"
+                    #       f"\nDistance error: {registered_distance}.\n"
+                    #       f"Elapsed time: {elapsed_time}.\n"
+                    #       f"Total work: {work_sum}.")
+                    # Set value, current value, distance error
                 if ui_flag:
                     print(f"[{self.x_cor}, {ball_xcor}, {abs(ball_xcor - self.x_cor)}]")
                     # Displaying work sum for each link
@@ -659,8 +616,7 @@ class Simulation:
                         data_series.append(series)
                     self.plot_multiple_series(data_series=data_series, dt=dt)
 
-                return
-                # return self.error_sum
+                return self.error_sum
 
     def plot_multiple_series(self, data_series, dt):
         for i, series in enumerate(data_series):
