@@ -7,5 +7,5 @@ Genetic algorithm operates within an open control structure with no feedback. Me
 
 To use the project you have to install graphviz on your operating system. Other modules listed in the files can be easily installed with PyCharm or pip.
 
-The file named arbiter.py launches the genetic algorith app, while neat_arbiter.py fires up GUI for the NEAT algorithm.
+The file named arbiter.py launches the genetic algorithm app, while neat_arbiter.py fires up GUI for the NEAT algorithm.
 Upon fresh run of the programmes and absence of .csv and .json files all training parameters have to be specified manually according to pygad or neat-python documentation.
